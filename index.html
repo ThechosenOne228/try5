@@ -469,7 +469,10 @@
             const [isTransitioning, setIsTransitioning] = React.useState(false);
             const [fps, setFps] = React.useState(0);
             const modelRef = React.useRef(null);
+            const fpsRef = React.useRef(0);
+            const lastFrameTimeRef = React.useRef(0);
             const frameCountRef = React.useRef(0);
+            const lastFpsUpdateRef = React.useRef(0);
             const lastTimeRef = React.useRef(performance.now());
             const detectionCanvasRef = React.useRef(null);
             const detectionContextRef = React.useRef(null);
@@ -487,6 +490,10 @@
                 'cell phone': 0.7,
                 'laptop': 0.7
             };
+
+            // Performance settings
+            const targetFps = 15;
+            const frameInterval = 1000 / targetFps;
 
             // Calculate IoU (Intersection over Union) between two bounding boxes
             const calculateIoU = (box1, box2) => {
@@ -677,129 +684,36 @@
                 return Array.from(currentTracks.values());
             }, []);
 
-            // Performance monitoring
-            const fpsRef = React.useRef(0);
-            const lastFrameTimeRef = React.useRef(0);
-            const frameCountRef = React.useRef(0);
-            const lastFpsUpdateRef = React.useRef(0);
-            const targetFps = 15;
-            const frameInterval = 1000 / targetFps;
-
-            // Optimized detection loop with FPS control
-            const detectObjects = React.useCallback(async () => {
-                const now = performance.now();
-                const elapsed = now - lastFrameTimeRef.current;
-
-                // Skip frame if we're running too fast
-                if (elapsed < frameInterval) {
-                    requestAnimationFrame(detectObjects);
-                    return;
-                }
-
-                if (!modelRef.current || !videoRef || !detectionContextRef.current || isTransitioning || isDetectingRef.current) {
-                    requestAnimationFrame(detectObjects);
-                    return;
-                }
-
-                try {
-                    isDetectingRef.current = true;
-                    lastFrameTimeRef.current = now;
-
-                    // Scale down video frame for detection
-                    const ctx = detectionContextRef.current;
-                    const canvas = detectionCanvasRef.current;
-                    
-                    if (!ctx || !canvas || !videoRef.videoWidth || !videoRef.videoHeight) {
-                        requestAnimationFrame(detectObjects);
-                        return;
-                    }
-                    
-                    // Clear previous frame
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    
-                    // Calculate aspect ratio to maintain video proportions
-                    const videoAspectRatio = videoRef.videoWidth / videoRef.videoHeight;
-                    const canvasAspectRatio = canvas.width / canvas.height;
-                    
-                    let drawWidth = canvas.width;
-                    let drawHeight = canvas.height;
-                    let offsetX = 0;
-                    let offsetY = 0;
-
-                    if (videoAspectRatio > canvasAspectRatio) {
-                        drawHeight = canvas.width / videoAspectRatio;
-                        offsetY = (canvas.height - drawHeight) / 2;
-                    } else {
-                        drawWidth = canvas.height * videoAspectRatio;
-                        offsetX = (canvas.width - drawWidth) / 2;
+            // Initialize canvases and handle window resize
+            React.useEffect(() => {
+                const initCanvases = () => {
+                    // Initialize detection canvas
+                    const detectionCanvas = detectionCanvasRef.current;
+                    if (detectionCanvas) {
+                        detectionCanvas.width = 640;
+                        detectionCanvas.height = 480;
+                        const detectionCtx = detectionCanvas.getContext('2d');
+                        if (detectionCtx) {
+                            detectionContextRef.current = detectionCtx;
+                        }
                     }
 
-                    // Draw scaled frame
-                    ctx.drawImage(
-                        videoRef,
-                        offsetX, offsetY,
-                        drawWidth, drawHeight
-                    );
-
-                    // Run detection on scaled frame with lower confidence threshold for small objects
-                    const startTime = performance.now();
-                    const predictions = await modelRef.current.detect(canvas);
-                    const inferenceTime = performance.now() - startTime;
-
-                    // Update FPS counter
-                    frameCountRef.current++;
-                    if (now - lastFpsUpdateRef.current >= 1000) {
-                        fpsRef.current = frameCountRef.current;
-                        frameCountRef.current = 0;
-                        lastFpsUpdateRef.current = now;
+                    // Initialize overlay canvas
+                    const overlayCanvas = overlayCanvasRef.current;
+                    if (overlayCanvas) {
+                        overlayCanvas.width = window.innerWidth;
+                        overlayCanvas.height = window.innerHeight;
+                        const overlayCtx = overlayCanvas.getContext('2d');
+                        if (overlayCtx) {
+                            overlayContextRef.current = overlayCtx;
+                        }
                     }
+                };
 
-                    if (!predictions || !Array.isArray(predictions)) {
-                        requestAnimationFrame(detectObjects);
-                        return;
-                    }
-
-                    // Filter predictions with adjusted confidence thresholds
-                    const liveDetections = predictions
-                        .filter(pred => {
-                            // Lower threshold for small objects
-                            const isSmallObject = ['glasses', 'watch', 'cell phone'].includes(pred.class);
-                            const minConfidence = isSmallObject ? 0.3 : 0.5;
-                            return pred.score >= minConfidence && pred.bbox && pred.bbox.length === 4;
-                        })
-                        .map(pred => {
-                            // Scale predictions back to original video size
-                            const scaleX = videoRef.videoWidth / canvas.width;
-                            const scaleY = videoRef.videoHeight / canvas.height;
-                            return {
-                                ...pred,
-                                bbox: [
-                                    pred.bbox[0] * scaleX,
-                                    pred.bbox[1] * scaleY,
-                                    pred.bbox[2] * scaleX,
-                                    pred.bbox[3] * scaleY
-                                ]
-                            };
-                        });
-
-                    // Update state with only live detections
-                    setDetections(liveDetections);
-
-                    // Draw overlays for live detections only
-                    drawOverlays(liveDetections);
-
-                    // Log performance metrics
-                    if (inferenceTime > frameInterval) {
-                        console.warn(`Frame dropped: Inference took ${inferenceTime.toFixed(2)}ms`);
-                    }
-
-                } catch (err) {
-                    console.error('Detection error:', err);
-                } finally {
-                    isDetectingRef.current = false;
-                    requestAnimationFrame(detectObjects);
-                }
-            }, [videoRef, isTransitioning, drawOverlays]);
+                initCanvases();
+                window.addEventListener('resize', initCanvases);
+                return () => window.removeEventListener('resize', initCanvases);
+            }, []);
 
             // Draw detection overlays with optimized rendering
             const drawOverlays = React.useCallback((detections) => {
@@ -807,6 +721,8 @@
 
                 const ctx = overlayContextRef.current;
                 const canvas = overlayCanvasRef.current;
+                
+                if (!canvas) return;
                 
                 // Ensure canvas dimensions match window
                 canvas.width = window.innerWidth;
@@ -881,12 +797,153 @@
                 });
             }, []);
 
-            // Initialize detection loop with performance monitoring
+            // Optimized detection loop with FPS control
+            const detectObjects = React.useCallback(async () => {
+                const now = performance.now();
+                const elapsed = now - lastFrameTimeRef.current;
+
+                // Skip frame if we're running too fast
+                if (elapsed < frameInterval) {
+                    requestAnimationFrame(detectObjects);
+                    return;
+                }
+
+                if (!modelRef.current || !videoRef || !detectionContextRef.current || isTransitioning || isDetectingRef.current) {
+                    requestAnimationFrame(detectObjects);
+                    return;
+                }
+
+                try {
+                    isDetectingRef.current = true;
+                    lastFrameTimeRef.current = now;
+
+                    // Scale down video frame for detection
+                    const ctx = detectionContextRef.current;
+                    const canvas = detectionCanvasRef.current;
+                    
+                    if (!ctx || !canvas || !videoRef.videoWidth || !videoRef.videoHeight) {
+                        requestAnimationFrame(detectObjects);
+                        return;
+                    }
+                    
+                    // Clear previous frame
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Calculate aspect ratio to maintain video proportions
+                    const videoAspectRatio = videoRef.videoWidth / videoRef.videoHeight;
+                    const canvasAspectRatio = canvas.width / canvas.height;
+                    
+                    let drawWidth = canvas.width;
+                    let drawHeight = canvas.height;
+                    let offsetX = 0;
+                    let offsetY = 0;
+
+                    if (videoAspectRatio > canvasAspectRatio) {
+                        drawHeight = canvas.width / videoAspectRatio;
+                        offsetY = (canvas.height - drawHeight) / 2;
+                    } else {
+                        drawWidth = canvas.height * videoAspectRatio;
+                        offsetX = (canvas.width - drawWidth) / 2;
+                    }
+
+                    // Draw scaled frame with error handling
+                    try {
+                        ctx.drawImage(
+                            videoRef,
+                            offsetX, offsetY,
+                            drawWidth, drawHeight
+                        );
+                    } catch (err) {
+                        console.warn('Error drawing video frame:', err);
+                        requestAnimationFrame(detectObjects);
+                        return;
+                    }
+
+                    // Run detection on scaled frame with timeout
+                    const startTime = performance.now();
+                    let predictions;
+                    try {
+                        predictions = await Promise.race([
+                            modelRef.current.detect(canvas),
+                            new Promise((_, reject) => 
+                                setTimeout(() => reject(new Error('Detection timeout')), 1000)
+                            )
+                        ]);
+                    } catch (err) {
+                        console.warn('Detection error or timeout:', err);
+                        requestAnimationFrame(detectObjects);
+                        return;
+                    }
+                    const inferenceTime = performance.now() - startTime;
+
+                    // Update FPS counter
+                    frameCountRef.current++;
+                    if (now - lastFpsUpdateRef.current >= 1000) {
+                        fpsRef.current = frameCountRef.current;
+                        frameCountRef.current = 0;
+                        lastFpsUpdateRef.current = now;
+                    }
+
+                    if (!predictions || !Array.isArray(predictions)) {
+                        requestAnimationFrame(detectObjects);
+                        return;
+                    }
+
+                    // Filter predictions with confidence threshold and bounds checking
+                    const liveDetections = predictions
+                        .filter(pred => {
+                            if (!pred || !pred.bbox || pred.bbox.length !== 4) return false;
+                            if (pred.score < 0.5) return false;
+                            
+                            // Check if bbox is within reasonable bounds
+                            const [x, y, width, height] = pred.bbox;
+                            return x >= 0 && y >= 0 && width > 0 && height > 0 &&
+                                   x + width <= videoRef.videoWidth &&
+                                   y + height <= videoRef.videoHeight;
+                        })
+                        .map(pred => {
+                            // Scale predictions back to original video size
+                            const scaleX = videoRef.videoWidth / canvas.width;
+                            const scaleY = videoRef.videoHeight / canvas.height;
+                            return {
+                                ...pred,
+                                bbox: [
+                                    pred.bbox[0] * scaleX,
+                                    pred.bbox[1] * scaleY,
+                                    pred.bbox[2] * scaleX,
+                                    pred.bbox[3] * scaleY
+                                ]
+                            };
+                        });
+
+                    // Update state with only live detections
+                    setDetections(liveDetections);
+
+                    // Draw overlays for live detections only
+                    drawOverlays(liveDetections);
+
+                    // Log performance metrics
+                    if (inferenceTime > frameInterval) {
+                        console.warn(`Frame dropped: Inference took ${inferenceTime.toFixed(2)}ms`);
+                    }
+
+                } catch (err) {
+                    console.error('Detection error:', err);
+                } finally {
+                    isDetectingRef.current = false;
+                    requestAnimationFrame(detectObjects);
+                }
+            }, [videoRef, isTransitioning, drawOverlays]);
+
+            // Initialize detection loop with performance monitoring and cleanup
             React.useEffect(() => {
                 let animationFrameId;
                 let lastTime = performance.now();
+                let isActive = true;
 
                 const startDetection = () => {
+                    if (!isActive) return;
+                    
                     const now = performance.now();
                     const elapsed = now - lastTime;
 
@@ -901,6 +958,7 @@
                 startDetection();
 
                 return () => {
+                    isActive = false;
                     if (animationFrameId) {
                         cancelAnimationFrame(animationFrameId);
                     }
