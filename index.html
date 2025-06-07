@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Share My Fit - Apple Edition</title>
+    <title>Share My Fit</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React and ReactDOM -->
@@ -17,43 +17,12 @@
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        @font-face {
-            font-family: 'SF Pro Display';
-            src: url('https://applesocial.s3.amazonaws.com/assets/styles/fonts/sanfrancisco/sfprodisplay-regular-webfont.woff2') format('woff2');
-            font-weight: normal;
-            font-style: normal;
-        }
-
-        @font-face {
-            font-family: 'SF Pro Display';
-            src: url('https://applesocial.s3.amazonaws.com/assets/styles/fonts/sanfrancisco/sfprodisplay-medium-webfont.woff2') format('woff2');
-            font-weight: 500;
-            font-style: normal;
-        }
-
-        @font-face {
-            font-family: 'SF Pro Display';
-            src: url('https://applesocial.s3.amazonaws.com/assets/styles/fonts/sanfrancisco/sfprodisplay-semibold-webfont.woff2') format('woff2');
-            font-weight: 600;
-            font-style: normal;
-        }
-
-        :root {
-            --apple-blue: #007AFF;
-            --apple-gray: #8E8E93;
-            --apple-background: rgba(255, 255, 255, 0.8);
-            --apple-blur: blur(20px);
-        }
-
         body {
             margin: 0;
             padding: 0;
             overflow: hidden;
             background: #000;
-            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
-            -webkit-font-smoothing: antialiased;
         }
-
         #video-container {
             position: fixed;
             top: 0;
@@ -62,132 +31,101 @@
             height: 100vh;
             z-index: 1;
         }
-
-        #video-container::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(transparent 50%, rgba(0, 255, 255, 0.1) 50%);
-            background-size: 100% 4px;
-            pointer-events: none;
-            animation: scanline 8s linear infinite;
-        }
-
         #video-feed {
             width: 100%;
             height: 100%;
             object-fit: cover;
             transition: opacity 0.5s ease;
-            filter: contrast(1.2) brightness(1.1);
         }
-
         #video-feed.fade-out {
             opacity: 0;
         }
-
         #app-root {
             position: relative;
             z-index: 2;
         }
-
-        .detection-label {
-            position: absolute;
-            background: var(--apple-background);
-            backdrop-filter: var(--apple-blur);
-            -webkit-backdrop-filter: var(--apple-blur);
-            color: #000;
-            padding: 12px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        #error-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            z-index: 1000;
+            max-width: 80%;
+            text-align: center;
         }
-
-        .detection-label:hover {
-            transform: scale(1.02);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        #debug-info {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            z-index: 1000;
         }
-
-        .brand-logo {
-            width: 24px;
-            height: 24px;
-            object-fit: contain;
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
         }
-
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
         .camera-switch {
             position: fixed;
             top: 20px;
             right: 20px;
-            background: var(--apple-background);
-            backdrop-filter: var(--apple-blur);
-            -webkit-backdrop-filter: var(--apple-blur);
-            color: #000;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
             border: none;
             border-radius: 50%;
-            width: 44px;
-            height: 44px;
+            width: 50px;
+            height: 50px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             z-index: 1000;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
         }
-
         .camera-switch:hover {
-            transform: scale(1.05);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            background: rgba(0, 0, 0, 0.7);
         }
-
         .camera-switch:active {
             transform: scale(0.95);
         }
-
-        .share-button {
-            position: fixed;
-            bottom: 32px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--apple-blue);
+        .detection-label {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.7);
             color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 20px;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
-            font-weight: 600;
-            font-size: 17px;
-            letter-spacing: -0.5px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 8px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            border: 2px solid #fff;
         }
-
-        .share-button:hover {
-            transform: translateX(-50%) scale(1.02);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        .detection-label:hover {
+            background: rgba(0, 0, 0, 0.9);
+            transform: scale(1.05);
         }
-
-        .loading-spinner {
-            border: 3px solid rgba(0, 122, 255, 0.1);
-            border-top: 3px solid var(--apple-blue);
-            border-radius: 50%;
+        .brand-logo {
             width: 24px;
             height: 24px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
+            object-fit: contain;
         }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
         .camera-transition {
             position: fixed;
             top: 0;
@@ -198,70 +136,12 @@
             z-index: 999;
             opacity: 0;
             pointer-events: none;
-            transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: opacity 0.5s ease;
         }
-
         .camera-transition.active {
             opacity: 1;
         }
-
-        #debug-info {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: var(--apple-background);
-            backdrop-filter: var(--apple-blur);
-            -webkit-backdrop-filter: var(--apple-blur);
-            color: #000;
-            padding: 12px;
-            border-radius: 12px;
-            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
-            font-size: 13px;
-            z-index: 1000;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-
-        .toast-message {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--apple-background);
-            backdrop-filter: var(--apple-blur);
-            -webkit-backdrop-filter: var(--apple-blur);
-            color: #000;
-            padding: 12px 24px;
-            border-radius: 20px;
-            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
-            font-weight: 500;
-            animation: fadeInOut 2s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-
-        @keyframes fadeInOut {
-            0% { opacity: 0; transform: translate(-50%, -20px); }
-            20% { opacity: 1; transform: translate(-50%, 0); }
-            80% { opacity: 1; transform: translate(-50%, 0); }
-            100% { opacity: 0; transform: translate(-50%, -20px); }
-        }
-
-        .confidence-bar {
-            width: 100%;
-            height: 4px;
-            background: rgba(0, 122, 255, 0.1);
-            border-radius: 2px;
-            overflow: hidden;
-            margin-top: 4px;
-        }
-
-        .confidence-bar-fill {
-            height: 100%;
-            background: var(--apple-blue);
-            border-radius: 2px;
-            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
     <div id="video-container">
@@ -276,19 +156,6 @@
     <script type="text/babel">
         // Brand logos mapping
         const brandLogos = {
-            // Tech Brands
-            'apple': 'https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg',
-            'samsung': 'https://upload.wikimedia.org/wikipedia/commons/2/24/Samsung_Logo.svg',
-            'sony': 'https://upload.wikimedia.org/wikipedia/commons/2/29/Sony_logo.svg',
-            'lg': 'https://upload.wikimedia.org/wikipedia/commons/2/20/LG_symbol.svg',
-            'google': 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Google_2015_logo.svg',
-            'microsoft': 'https://upload.wikimedia.org/wikipedia/commons/9/96/Microsoft_logo_%282012%29.svg',
-            'intel': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Intel_logo_%282020%2C_light_blue%29.svg',
-            'amd': 'https://upload.wikimedia.org/wikipedia/commons/7/7c/AMD_Logo.svg',
-            'nvidia': 'https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg',
-            'qualcomm': 'https://upload.wikimedia.org/wikipedia/commons/9/93/Qualcomm-Logo.svg',
-            
-            // Sportswear
             'nike': 'https://upload.wikimedia.org/wikipedia/commons/a/a6/Logo_NIKE.svg',
             'adidas': 'https://upload.wikimedia.org/wikipedia/commons/2/20/Adidas_Logo.svg',
             'puma': 'https://upload.wikimedia.org/wikipedia/commons/4/44/Puma_logo.svg',
@@ -298,11 +165,6 @@
             'converse': 'https://upload.wikimedia.org/wikipedia/commons/3/3b/Converse_logo.svg',
             'vans': 'https://upload.wikimedia.org/wikipedia/commons/3/36/Vans-logo.svg',
             'jordan': 'https://upload.wikimedia.org/wikipedia/commons/a/a6/Logo_NIKE.svg',
-            'asics': 'https://upload.wikimedia.org/wikipedia/commons/9/92/ASICS_logo.svg',
-            'fila': 'https://upload.wikimedia.org/wikipedia/commons/0/0f/Fila_logo.svg',
-            'mizuno': 'https://upload.wikimedia.org/wikipedia/commons/8/8c/Mizuno_Corporation_logo.svg',
-            
-            // Luxury Brands
             'gucci': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Gucci_logo.svg',
             'louis vuitton': 'https://upload.wikimedia.org/wikipedia/commons/9/9f/Louis_Vuitton_logo.svg',
             'prada': 'https://upload.wikimedia.org/wikipedia/commons/3/3e/Prada_logo.svg',
@@ -310,35 +172,10 @@
             'calvin klein': 'https://upload.wikimedia.org/wikipedia/commons/5/5c/Calvin_Klein_logo.svg',
             'tommy hilfiger': 'https://upload.wikimedia.org/wikipedia/commons/5/5c/Tommy_Hilfiger_Logo.svg',
             'ralph lauren': 'https://upload.wikimedia.org/wikipedia/commons/d/d6/Ralph_Lauren_logo.svg',
-            'burberry': 'https://upload.wikimedia.org/wikipedia/commons/6/61/Burberry_logo.svg',
-            'hermes': 'https://upload.wikimedia.org/wikipedia/commons/4/4c/Herm%C3%A8s_logo.svg',
-            'chanel': 'https://upload.wikimedia.org/wikipedia/commons/7/7a/Chanel_logo.svg',
-            
-            // Fashion Brands
             'levi\'s': 'https://upload.wikimedia.org/wikipedia/commons/2/21/Levi%27s_logo.svg',
             'gap': 'https://upload.wikimedia.org/wikipedia/commons/7/7a/Gap_logo.svg',
             'zara': 'https://upload.wikimedia.org/wikipedia/commons/5/53/Zara_logo.svg',
-            'h&m': 'https://upload.wikimedia.org/wikipedia/commons/5/53/H%26M-Logo.svg',
-            'uniqlo': 'https://upload.wikimedia.org/wikipedia/commons/9/92/UNIQLO_logo.svg',
-            'forever 21': 'https://upload.wikimedia.org/wikipedia/commons/8/86/Forever_21_logo.svg',
-            'american eagle': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/American_Eagle_Outfitters_logo.svg',
-            'hollister': 'https://upload.wikimedia.org/wikipedia/commons/8/8d/Hollister_logo.svg',
-            'abercrombie': 'https://upload.wikimedia.org/wikipedia/commons/8/8d/Abercrombie_%26_Fitch_Logo.svg',
-            'urban outfitters': 'https://upload.wikimedia.org/wikipedia/commons/7/7e/Urban_Outfitters_logo.svg',
-            
-            // Watch Brands
-            'rolex': 'https://upload.wikimedia.org/wikipedia/commons/d/d1/Rolex_logo.svg',
-            'omega': 'https://upload.wikimedia.org/wikipedia/commons/f/f4/Omega_logo.svg',
-            'tag heuer': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/TAG_Heuer_Logo.svg',
-            'cartier': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Cartier_logo.svg',
-            'breitling': 'https://upload.wikimedia.org/wikipedia/commons/8/8d/Breitling_logo.svg',
-            
-            // Tech Accessories
-            'beats': 'https://upload.wikimedia.org/wikipedia/commons/1/14/Beats_Electronics_logo.svg',
-            'bose': 'https://upload.wikimedia.org/wikipedia/commons/2/2e/Bose_logo.svg',
-            'jbl': 'https://upload.wikimedia.org/wikipedia/commons/0/0e/JBL_logo.svg',
-            'ray-ban': 'https://upload.wikimedia.org/wikipedia/commons/2/2e/Ray-Ban_logo.svg',
-            'oakley': 'https://upload.wikimedia.org/wikipedia/commons/4/4e/Oakley_logo.svg'
+            'h&m': 'https://upload.wikimedia.org/wikipedia/commons/5/53/H%26M-Logo.svg'
         };
 
         // Function to detect brand from class name
@@ -434,160 +271,7 @@
             const [isFrontCamera, setIsFrontCamera] = React.useState(true);
             const [videoRef, setVideoRef] = React.useState(initialVideoRef);
             const [isTransitioning, setIsTransitioning] = React.useState(false);
-            const [confidenceThreshold, setConfidenceThreshold] = React.useState(0.6);
-            const [trackedObjects, setTrackedObjects] = React.useState(new Map());
             const modelRef = React.useRef(null);
-            const frameCountRef = React.useRef(0);
-            const lastDetectionsRef = React.useRef([]);
-
-            // Function to calculate IoU (Intersection over Union)
-            const calculateIoU = (box1, box2) => {
-                const [x1, y1, w1, h1] = box1;
-                const [x2, y2, w2, h2] = box2;
-                
-                const intersectionX = Math.max(x1, x2);
-                const intersectionY = Math.max(y1, y2);
-                const intersectionWidth = Math.min(x1 + w1, x2 + w2) - intersectionX;
-                const intersectionHeight = Math.min(y1 + h1, y2 + h2) - intersectionY;
-                
-                if (intersectionWidth <= 0 || intersectionHeight <= 0) return 0;
-                
-                const intersectionArea = intersectionWidth * intersectionHeight;
-                const box1Area = w1 * h1;
-                const box2Area = w2 * h2;
-                
-                return intersectionArea / (box1Area + box2Area - intersectionArea);
-            };
-
-            // Function to track objects between frames
-            const trackObjects = (newDetections) => {
-                const currentTime = Date.now();
-                const trackedObjectsMap = new Map(trackedObjects);
-                const matchedDetections = new Set();
-
-                // Update existing tracks
-                for (const [id, track] of trackedObjectsMap) {
-                    let bestMatch = null;
-                    let bestIoU = 0.3; // Minimum IoU threshold
-
-                    for (const detection of newDetections) {
-                        if (matchedDetections.has(detection)) continue;
-
-                        const iou = calculateIoU(track.bbox, detection.bbox);
-                        if (iou > bestIoU) {
-                            bestIoU = iou;
-                            bestMatch = detection;
-                        }
-                    }
-
-                    if (bestMatch) {
-                        matchedDetections.add(bestMatch);
-                        trackedObjectsMap.set(id, {
-                            ...bestMatch,
-                            trackId: id,
-                            lastSeen: currentTime,
-                            confidence: bestMatch.score,
-                            history: [...track.history, { bbox: bestMatch.bbox, time: currentTime }]
-                        });
-                    } else if (currentTime - track.lastSeen < 1000) {
-                        // Keep track alive for 1 second after last detection
-                        trackedObjectsMap.set(id, track);
-                    } else {
-                        trackedObjectsMap.delete(id);
-                    }
-                }
-
-                // Add new tracks
-                for (const detection of newDetections) {
-                    if (!matchedDetections.has(detection)) {
-                        const newId = Date.now() + Math.random();
-                        trackedObjectsMap.set(newId, {
-                            ...detection,
-                            trackId: newId,
-                            lastSeen: currentTime,
-                            confidence: detection.score,
-                            history: [{ bbox: detection.bbox, time: currentTime }]
-                        });
-                    }
-                }
-
-                setTrackedObjects(trackedObjectsMap);
-                return Array.from(trackedObjectsMap.values());
-            };
-
-            // Load the COCO-SSD model with enhanced configuration
-            React.useEffect(() => {
-                const loadModel = async () => {
-                    try {
-                        setLoadingProgress('Loading TensorFlow.js...');
-                        debugLog('Loading TensorFlow.js...');
-                        
-                        // Wait for TensorFlow.js to be ready
-                        await tf.ready();
-                        setLoadingProgress('TensorFlow.js loaded, initializing COCO-SSD model...');
-                        debugLog('TensorFlow.js loaded, initializing COCO-SSD model...');
-                        
-                        // Load the COCO-SSD model with enhanced configuration
-                        const model = await cocoSsd.load({
-                            base: 'lite_mobilenet_v2',
-                            modelUrl: 'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js',
-                            threshold: confidenceThreshold
-                        });
-                        
-                        debugLog('COCO-SSD model loaded successfully');
-                        setLoadingProgress('Model loaded successfully!');
-                        modelRef.current = model;
-                        setIsModelLoading(false);
-                    } catch (err) {
-                        const errorMsg = 'Failed to load the AI model: ' + err.message;
-                        debugLog(errorMsg);
-                        setError(errorMsg);
-                    }
-                };
-                loadModel();
-            }, [confidenceThreshold]);
-
-            // Run detection with enhanced tracking
-            React.useEffect(() => {
-                let animationFrameId;
-                const detectObjects = async () => {
-                    if (modelRef.current && videoRef && !isTransitioning) {
-                        try {
-                            frameCountRef.current++;
-                            
-                            // Only run full detection every 3 frames
-                            if (frameCountRef.current % 3 === 0) {
-                                const predictions = await modelRef.current.detect(videoRef);
-                                const filteredPredictions = predictions.filter(pred => pred.score >= confidenceThreshold);
-                                lastDetectionsRef.current = filteredPredictions;
-                                
-                                // Track objects between frames
-                                const trackedDetections = trackObjects(filteredPredictions);
-                                setDetections(trackedDetections);
-                            } else {
-                                // Use tracking for intermediate frames
-                                const trackedDetections = trackObjects(lastDetectionsRef.current);
-                                setDetections(trackedDetections);
-                            }
-                        } catch (err) {
-                            const errorMsg = 'Detection error: ' + err.message;
-                            debugLog(errorMsg);
-                            setError(errorMsg);
-                        }
-                    }
-                    animationFrameId = requestAnimationFrame(detectObjects);
-                };
-
-                if (!isModelLoading && !error) {
-                    detectObjects();
-                }
-
-                return () => {
-                    if (animationFrameId) {
-                        cancelAnimationFrame(animationFrameId);
-                    }
-                };
-            }, [isModelLoading, error, videoRef, isTransitioning, confidenceThreshold]);
 
             // Handle camera switch
             const handleCameraSwitch = async () => {
@@ -617,6 +301,64 @@
                 }
             };
 
+            // Load the COCO-SSD model
+            React.useEffect(() => {
+                const loadModel = async () => {
+                    try {
+                        setLoadingProgress('Loading TensorFlow.js...');
+                        debugLog('Loading TensorFlow.js...');
+                        
+                        // Wait for TensorFlow.js to be ready
+                        await tf.ready();
+                        setLoadingProgress('TensorFlow.js loaded, initializing COCO-SSD model...');
+                        debugLog('TensorFlow.js loaded, initializing COCO-SSD model...');
+                        
+                        // Load the COCO-SSD model
+                        const model = await cocoSsd.load({
+                            base: 'lite_mobilenet_v2'
+                        });
+                        
+                        debugLog('COCO-SSD model loaded successfully');
+                        setLoadingProgress('Model loaded successfully!');
+                        modelRef.current = model;
+                        setIsModelLoading(false);
+                    } catch (err) {
+                        const errorMsg = 'Failed to load the AI model: ' + err.message;
+                        debugLog(errorMsg);
+                        setError(errorMsg);
+                    }
+                };
+                loadModel();
+            }, []);
+
+            // Run detection
+            React.useEffect(() => {
+                let animationFrameId;
+                const detectObjects = async () => {
+                    if (modelRef.current && videoRef && !isTransitioning) {
+                        try {
+                            const predictions = await modelRef.current.detect(videoRef);
+                            setDetections(predictions);
+                        } catch (err) {
+                            const errorMsg = 'Detection error: ' + err.message;
+                            debugLog(errorMsg);
+                            setError(errorMsg);
+                        }
+                    }
+                    animationFrameId = requestAnimationFrame(detectObjects);
+                };
+
+                if (!isModelLoading && !error) {
+                    detectObjects();
+                }
+
+                return () => {
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                    }
+                };
+            }, [isModelLoading, error, videoRef, isTransitioning]);
+
             const handleShare = () => {
                 try {
                     const items = detections
@@ -636,12 +378,12 @@
 
             if (error) {
                 return React.createElement('div', { className: 'fixed inset-0 flex items-center justify-center bg-black bg-opacity-50' },
-                    React.createElement('div', { className: 'bg-black p-6 rounded-lg border border-[#00ffff] text-[#00ffff] max-w-md' },
-                        React.createElement('h2', { className: 'text-xl font-bold mb-4' }, 'Error'),
-                        React.createElement('p', { className: 'mb-4' }, error),
+                    React.createElement('div', { className: 'bg-white p-6 rounded-lg shadow-xl max-w-md' },
+                        React.createElement('h2', { className: 'text-xl font-bold text-red-600 mb-4' }, 'Error'),
+                        React.createElement('p', { className: 'text-gray-700 mb-4' }, error),
                         React.createElement('button', {
                             onClick: () => window.location.reload(),
-                            className: 'bg-[#00ffff] bg-opacity-10 text-[#00ffff] px-4 py-2 rounded border border-[#00ffff] hover:bg-opacity-20'
+                            className: 'bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600'
                         }, 'Refresh Page')
                     )
                 );
@@ -655,15 +397,12 @@
                     title: `Switch to ${isFrontCamera ? 'back' : 'front'} camera`,
                     disabled: isTransitioning
                 }, '📷'),
-                // Detection Labels with enhanced information
+                // Detection Labels
                 detections.map((detection, index) => {
                     const brand = detectBrand(detection.class);
-                    const confidence = Math.round(detection.confidence * 100);
-                    const isNew = Date.now() - detection.lastSeen < 500;
-                    
                     return React.createElement('div', {
-                        key: detection.trackId || index,
-                        className: `detection-label ${isNew ? 'animate-pulse' : ''}`,
+                        key: index,
+                        className: 'detection-label',
                         style: {
                             left: `${detection.bbox[0]}px`,
                             top: `${detection.bbox[1]}px`,
@@ -671,26 +410,18 @@
                             height: `${detection.bbox[3]}px`
                         }
                     },
-                        React.createElement('div', { className: 'flex items-center gap-3' },
+                        React.createElement('div', { className: 'flex items-center gap-2' },
                             brand && React.createElement('img', {
                                 src: brandLogos[brand],
                                 alt: brand,
                                 className: 'brand-logo'
                             }),
-                            React.createElement('div', { className: 'flex flex-col' },
-                                React.createElement('span', { className: 'font-semibold text-[15px]' }, detection.class),
-                                React.createElement('div', { className: 'confidence-bar' },
-                                    React.createElement('div', {
-                                        className: 'confidence-bar-fill',
-                                        style: { width: `${confidence}%` }
-                                    })
-                                )
-                            ),
+                            React.createElement('span', null, detection.class),
                             React.createElement('a', {
                                 href: `https://www.google.com/search?tbm=shop&q=${detection.class}`,
                                 target: '_blank',
                                 rel: 'noopener noreferrer',
-                                className: 'text-[#007AFF] hover:text-[#007AFF] opacity-80'
+                                className: 'text-blue-400 hover:text-blue-300'
                             }, '🔍')
                         )
                     );
@@ -698,18 +429,18 @@
                 // Share Button
                 React.createElement('button', {
                     onClick: handleShare,
-                    className: 'share-button'
+                    className: 'fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-full shadow-lg transition-all duration-200'
                 }, 'Share My Fit'),
                 // Loading Indicator
                 isModelLoading && React.createElement('div', {
-                    className: 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-50 text-[#00ffff] px-4 py-2 rounded text-center border border-[#00ffff]'
+                    className: 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-50 text-white px-4 py-2 rounded text-center'
                 },
                     React.createElement('div', { className: 'loading-spinner' }),
-                    React.createElement('p', { className: 'mt-2 font-rajdhani' }, loadingProgress)
+                    React.createElement('p', { className: 'mt-2' }, loadingProgress)
                 ),
                 // Toast Message
                 showToast && React.createElement('div', {
-                    className: 'toast-message'
+                    className: 'fixed top-8 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded shadow-lg transition-all duration-200'
                 }, 'Outfit copied to clipboard!')
             );
         };
