@@ -82,6 +82,52 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .loading-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+            z-index: 1000;
+            min-width: 300px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .loading-progress {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+        .loading-progress-bar {
+            height: 100%;
+            background: #3498db;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+        .loading-steps {
+            text-align: left;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        .loading-step {
+            margin: 8px 0;
+            opacity: 0.5;
+            transition: opacity 0.3s ease;
+        }
+        .loading-step.active {
+            opacity: 1;
+            color: #3498db;
+        }
+        .loading-step.completed {
+            opacity: 0.7;
+            color: #2ecc71;
+        }
         .camera-switch {
             position: fixed;
             top: 20px;
@@ -407,13 +453,211 @@
         const App = ({ initialVideoRef }) => {
             const [detections, setDetections] = React.useState([]);
             const [isModelLoading, setIsModelLoading] = React.useState(true);
-            const [loadingProgress, setLoadingProgress] = React.useState('Initializing...');
+            const [loadingProgress, setLoadingProgress] = React.useState(0);
+            const [loadingStep, setLoadingStep] = React.useState('Initializing...');
+            const [loadingSteps, setLoadingSteps] = React.useState([
+                { id: 'init', text: 'Initializing application...', status: 'active' },
+                { id: 'tf', text: 'Loading TensorFlow.js...', status: 'pending' },
+                { id: 'model', text: 'Loading AI model...', status: 'pending' },
+                { id: 'camera', text: 'Setting up camera...', status: 'pending' },
+                { id: 'ready', text: 'Ready to detect!', status: 'pending' }
+            ]);
             const [showToast, setShowToast] = React.useState(false);
             const [error, setError] = React.useState(null);
             const [isFrontCamera, setIsFrontCamera] = React.useState(true);
             const [videoRef, setVideoRef] = React.useState(initialVideoRef);
             const [isTransitioning, setIsTransitioning] = React.useState(false);
+            const [fps, setFps] = React.useState(0);
             const modelRef = React.useRef(null);
+            const frameCountRef = React.useRef(0);
+            const lastTimeRef = React.useRef(performance.now());
+            const detectionCanvasRef = React.useRef(null);
+            const detectionContextRef = React.useRef(null);
+            const isDetectingRef = React.useRef(false);
+
+            // Initialize detection canvas
+            React.useEffect(() => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 640; // Reduced resolution for detection
+                canvas.height = 480;
+                detectionCanvasRef.current = canvas;
+                detectionContextRef.current = canvas.getContext('2d');
+            }, []);
+
+            // FPS counter
+            React.useEffect(() => {
+                const updateFPS = () => {
+                    const now = performance.now();
+                    const elapsed = now - lastTimeRef.current;
+                    frameCountRef.current++;
+
+                    if (elapsed >= 1000) {
+                        setFps(Math.round((frameCountRef.current * 1000) / elapsed));
+                        frameCountRef.current = 0;
+                        lastTimeRef.current = now;
+                    }
+                    requestAnimationFrame(updateFPS);
+                };
+                requestAnimationFrame(updateFPS);
+            }, []);
+
+            // Optimized detection loop
+            const detectObjects = React.useCallback(async () => {
+                if (!modelRef.current || !videoRef || !detectionContextRef.current || isTransitioning || isDetectingRef.current) {
+                    return;
+                }
+
+                try {
+                    isDetectingRef.current = true;
+
+                    // Scale down video frame for detection
+                    const ctx = detectionContextRef.current;
+                    const canvas = detectionCanvasRef.current;
+                    
+                    // Calculate aspect ratio to maintain video proportions
+                    const videoAspectRatio = videoRef.videoWidth / videoRef.videoHeight;
+                    const canvasAspectRatio = canvas.width / canvas.height;
+                    
+                    let drawWidth = canvas.width;
+                    let drawHeight = canvas.height;
+                    let offsetX = 0;
+                    let offsetY = 0;
+
+                    if (videoAspectRatio > canvasAspectRatio) {
+                        drawHeight = canvas.width / videoAspectRatio;
+                        offsetY = (canvas.height - drawHeight) / 2;
+                    } else {
+                        drawWidth = canvas.height * videoAspectRatio;
+                        offsetX = (canvas.width - drawWidth) / 2;
+                    }
+
+                    // Draw scaled frame
+                    ctx.drawImage(
+                        videoRef,
+                        offsetX, offsetY,
+                        drawWidth, drawHeight
+                    );
+
+                    // Run detection on scaled frame
+                    const predictions = await modelRef.current.detect(canvas);
+
+                    // Scale predictions back to original video size
+                    const scaleX = videoRef.videoWidth / canvas.width;
+                    const scaleY = videoRef.videoHeight / canvas.height;
+
+                    const scaledPredictions = predictions.map(pred => ({
+                        ...pred,
+                        bbox: [
+                            pred.bbox[0] * scaleX,
+                            pred.bbox[1] * scaleY,
+                            pred.bbox[2] * scaleX,
+                            pred.bbox[3] * scaleY
+                        ]
+                    }));
+
+                    setDetections(scaledPredictions);
+                } catch (err) {
+                    console.error('Detection error:', err);
+                } finally {
+                    isDetectingRef.current = false;
+                }
+            }, [videoRef, isTransitioning]);
+
+            // Optimized rendering loop
+            React.useEffect(() => {
+                let animationFrameId;
+                let lastDetectionTime = 0;
+                const detectionInterval = 1000 / 30; // Target 30 FPS for detection
+
+                const renderLoop = (timestamp) => {
+                    if (timestamp - lastDetectionTime >= detectionInterval) {
+                        detectObjects();
+                        lastDetectionTime = timestamp;
+                    }
+                    animationFrameId = requestAnimationFrame(renderLoop);
+                };
+
+                if (!isModelLoading && !error) {
+                    animationFrameId = requestAnimationFrame(renderLoop);
+                }
+
+                return () => {
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                    }
+                };
+            }, [isModelLoading, error, detectObjects]);
+
+            // Load the COCO-SSD model
+            React.useEffect(() => {
+                const loadModel = async () => {
+                    try {
+                        // Initialize TensorFlow.js
+                        setLoadingProgress(10);
+                        setLoadingStep('Loading TensorFlow.js...');
+                        updateLoadingStep('init', 'completed');
+                        updateLoadingStep('tf', 'active');
+                        
+                        await tf.ready();
+                        setLoadingProgress(30);
+                        updateLoadingStep('tf', 'completed');
+                        updateLoadingStep('model', 'active');
+                        
+                        // Load the COCO-SSD model
+                        setLoadingStep('Loading AI model...');
+                        const model = await cocoSsd.load({
+                            base: 'lite_mobilenet_v2'
+                        });
+                        
+                        setLoadingProgress(70);
+                        updateLoadingStep('model', 'completed');
+                        updateLoadingStep('camera', 'active');
+                        
+                        // Setup camera
+                        setLoadingStep('Setting up camera...');
+                        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate camera setup
+                        
+                        setLoadingProgress(90);
+                        updateLoadingStep('camera', 'completed');
+                        updateLoadingStep('ready', 'active');
+                        
+                        // Final setup
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        setLoadingProgress(100);
+                        setLoadingStep('Ready to detect!');
+                        
+                        modelRef.current = model;
+                        setIsModelLoading(false);
+                        
+                        // Hide loading after a short delay
+                        setTimeout(() => {
+                            updateLoadingStep('ready', 'completed');
+                        }, 1000);
+                    } catch (err) {
+                        const errorMsg = 'Failed to load the AI model: ' + err.message;
+                        debugLog(errorMsg);
+                        setError(errorMsg);
+                    }
+                };
+                loadModel();
+            }, []);
+
+            const handleShare = () => {
+                try {
+                    const items = detections
+                        .filter(det => ['person', 'backpack', 'handbag', 'suitcase', 'bottle', 'wine glass', 'cup', 'bowl', 'chair', 'couch', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'].includes(det.class))
+                        .map(det => det.class);
+                    
+                    const text = `Today's Fit: ${items.join(', ')}`;
+                    navigator.clipboard.writeText(text);
+                    setShowToast(true);
+                    setTimeout(() => setShowToast(false), 2000);
+                } catch (err) {
+                    const errorMsg = 'Share error: ' + err.message;
+                    debugLog(errorMsg);
+                    setError(errorMsg);
+                }
+            };
 
             // Handle camera switch
             const handleCameraSwitch = async () => {
@@ -443,81 +687,6 @@
                 }
             };
 
-            // Load the COCO-SSD model
-            React.useEffect(() => {
-                const loadModel = async () => {
-                    try {
-                        setLoadingProgress('Loading TensorFlow.js...');
-                        debugLog('Loading TensorFlow.js...');
-                        
-                        // Wait for TensorFlow.js to be ready
-                        await tf.ready();
-                        setLoadingProgress('TensorFlow.js loaded, initializing COCO-SSD model...');
-                        debugLog('TensorFlow.js loaded, initializing COCO-SSD model...');
-                        
-                        // Load the COCO-SSD model
-                        const model = await cocoSsd.load({
-                            base: 'lite_mobilenet_v2'
-                        });
-                        
-                        debugLog('COCO-SSD model loaded successfully');
-                        setLoadingProgress('Model loaded successfully!');
-                        modelRef.current = model;
-                        setIsModelLoading(false);
-                    } catch (err) {
-                        const errorMsg = 'Failed to load the AI model: ' + err.message;
-                        debugLog(errorMsg);
-                        setError(errorMsg);
-                    }
-                };
-                loadModel();
-            }, []);
-
-            // Run detection
-            React.useEffect(() => {
-                let animationFrameId;
-                const detectObjects = async () => {
-                    if (modelRef.current && videoRef && !isTransitioning) {
-                        try {
-                            const predictions = await modelRef.current.detect(videoRef);
-                            setDetections(predictions);
-                        } catch (err) {
-                            const errorMsg = 'Detection error: ' + err.message;
-                            debugLog(errorMsg);
-                            setError(errorMsg);
-                        }
-                    }
-                    animationFrameId = requestAnimationFrame(detectObjects);
-                };
-
-                if (!isModelLoading && !error) {
-                    detectObjects();
-                }
-
-                return () => {
-                    if (animationFrameId) {
-                        cancelAnimationFrame(animationFrameId);
-                    }
-                };
-            }, [isModelLoading, error, videoRef, isTransitioning]);
-
-            const handleShare = () => {
-                try {
-                    const items = detections
-                        .filter(det => ['person', 'backpack', 'handbag', 'suitcase', 'bottle', 'wine glass', 'cup', 'bowl', 'chair', 'couch', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'].includes(det.class))
-                        .map(det => det.class);
-                    
-                    const text = `Today's Fit: ${items.join(', ')}`;
-                    navigator.clipboard.writeText(text);
-                    setShowToast(true);
-                    setTimeout(() => setShowToast(false), 2000);
-                } catch (err) {
-                    const errorMsg = 'Share error: ' + err.message;
-                    debugLog(errorMsg);
-                    setError(errorMsg);
-                }
-            };
-
             if (error) {
                 return React.createElement('div', { className: 'fixed inset-0 flex items-center justify-center bg-black bg-opacity-50' },
                     React.createElement('div', { className: 'bg-white p-6 rounded-lg shadow-xl max-w-md' },
@@ -532,6 +701,10 @@
             }
 
             return React.createElement('div', { className: 'relative w-full h-screen' },
+                // FPS Counter
+                React.createElement('div', {
+                    className: 'fixed top-4 left-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm'
+                }, `${fps} FPS`),
                 // Camera Switch Button
                 React.createElement('button', {
                     onClick: handleCameraSwitch,
@@ -574,11 +747,23 @@
                     className: 'fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-full shadow-lg transition-all duration-200'
                 }, 'Share My Fit'),
                 // Loading Indicator
-                isModelLoading && React.createElement('div', {
-                    className: 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-50 text-white px-4 py-2 rounded text-center'
-                },
+                isModelLoading && React.createElement('div', { className: 'loading-container' },
                     React.createElement('div', { className: 'loading-spinner' }),
-                    React.createElement('p', { className: 'mt-2' }, loadingProgress)
+                    React.createElement('h3', { className: 'text-lg font-semibold mb-2' }, loadingStep),
+                    React.createElement('div', { className: 'loading-progress' },
+                        React.createElement('div', {
+                            className: 'loading-progress-bar',
+                            style: { width: `${loadingProgress}%` }
+                        })
+                    ),
+                    React.createElement('div', { className: 'loading-steps' },
+                        loadingSteps.map(step => 
+                            React.createElement('div', {
+                                key: step.id,
+                                className: `loading-step ${step.status}`
+                            }, step.text)
+                        )
+                    )
                 ),
                 // Toast Message
                 showToast && React.createElement('div', {
