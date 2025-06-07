@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Share My Fit - AI Edition</title>
+    <title>Share My Fit - Apple Edition</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React and ReactDOM -->
@@ -12,8 +12,8 @@
     <!-- Babel for JSX/TypeScript -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- TensorFlow.js -->
-    <script src="https://unpkg.com/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
-    <script src="https://unpkg.com/@tensorflow-models/efficientdet@1.0.0/dist/efficientdet.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -260,619 +260,480 @@
             border-radius: 2px;
             transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-
-        /* Dynamic Island */
-        .dynamic-island {
-            position: fixed;
-            top: 12px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #000;
-            border-radius: 20px;
-            padding: 8px 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            z-index: 1000;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-
-        .dynamic-island.expanded {
-            width: 300px;
-            padding: 12px;
-        }
-
-        .dynamic-island-icon {
-            width: 24px;
-            height: 24px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--apple-blue);
-            color: white;
-        }
-
-        /* Control Center */
-        .control-center {
-            position: fixed;
-            top: 12px;
-            right: 12px;
-            display: flex;
-            gap: 8px;
-            z-index: 1000;
-        }
-
-        .control-button {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            background: var(--apple-background);
-            backdrop-filter: var(--apple-blur);
-            -webkit-backdrop-filter: var(--apple-blur);
-            border: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #000;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-
-        .control-button:hover {
-            transform: scale(1.05);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        }
-
-        .control-button.active {
-            background: var(--apple-blue);
-            color: white;
-        }
-
-        /* Notification Center */
-        .notification-center {
-            position: fixed;
-            top: 60px;
-            right: 12px;
-            width: 300px;
-            background: var(--apple-background);
-            backdrop-filter: var(--apple-blur);
-            -webkit-backdrop-filter: var(--apple-blur);
-            border-radius: 16px;
-            padding: 16px;
-            z-index: 999;
-            transform: translateX(120%);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-
-        .notification-center.visible {
-            transform: translateX(0);
-        }
-
-        .notification {
-            padding: 12px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.5);
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .notification-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--apple-blue);
-            color: white;
-        }
-
-        .notification-content {
-            flex: 1;
-        }
-
-        .notification-title {
-            font-weight: 600;
-            font-size: 15px;
-            margin-bottom: 2px;
-        }
-
-        .notification-message {
-            font-size: 13px;
-            color: var(--apple-gray);
-        }
-
-        /* Status Bar */
-        .status-bar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 44px;
-            background: var(--apple-background);
-            backdrop-filter: var(--apple-blur);
-            -webkit-backdrop-filter: var(--apple-blur);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 16px;
-            z-index: 1001;
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .status-bar-time {
-            font-weight: 600;
-        }
-
-        .status-bar-icons {
-            display: flex;
-            gap: 4px;
-        }
-
-        /* Detection Overlay Styles */
-        .detection-overlay {
-            position: absolute;
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
-            border-radius: 8px;
-            padding: 8px 12px;
-            color: white;
-            font-size: 14px;
-            pointer-events: none;
-            transition: all 0.3s ease;
-            z-index: 100;
-        }
-
-        .detection-overlay .brand {
-            font-weight: 600;
-            color: var(--apple-blue);
-        }
-
-        .detection-overlay .price {
-            color: #4ade80;
-        }
-
-        .detection-overlay .description {
-            font-size: 12px;
-            color: #94a3b8;
-            margin-top: 2px;
-        }
-
-        /* Toggle Controls */
-        .toggle-controls {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--apple-background);
-            backdrop-filter: var(--apple-blur);
-            -webkit-backdrop-filter: var(--apple-blur);
-            border-radius: 16px;
-            padding: 12px;
-            display: flex;
-            gap: 8px;
-            z-index: 1000;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-
-        .toggle-button {
-            padding: 8px 16px;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.1);
-            color: #000;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .toggle-button.active {
-            background: var(--apple-blue);
-            color: white;
-        }
-
-        /* Canvas Overlay */
-        #detection-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-        }
-
-        /* Capture Button */
-        .capture-button {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 56px;
-            height: 56px;
-            border-radius: 28px;
-            background: var(--apple-blue);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-
-        .capture-button:hover {
-            transform: scale(1.05);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        }
-
-        /* Loading Indicator */
-        .loading-indicator {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: var(--apple-background);
-            backdrop-filter: var(--apple-blur);
-            -webkit-backdrop-filter: var(--apple-blur);
-            border-radius: 16px;
-            padding: 24px;
-            text-align: center;
-            z-index: 1000;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
     <div id="video-container">
         <video id="video-feed" autoplay playsinline></video>
-        <canvas id="detection-canvas"></canvas>
     </div>
     <div id="app-root"></div>
     <div id="error-message" style="display: none;"></div>
     <div id="debug-info"></div>
     <div id="camera-transition" class="camera-transition"></div>
 
-    <!-- Mock Product Database -->
-    <script>
-        const productDB = {
-            person: {
-                brand: "Human",
-                title: "Person",
-                price: "N/A",
-                description: "Human being detected"
-            },
-            car: {
-                brand: "Vehicle",
-                title: "Automobile",
-                price: "$25,000+",
-                description: "Four-wheeled motor vehicle"
-            },
-            shoe: {
-                brand: "Nike",
-                title: "Air Max 90",
-                price: "$129.99",
-                description: "Classic running shoe with Air cushioning"
-            },
-            phone: {
-                brand: "Apple",
-                title: "iPhone 15 Pro",
-                price: "$999",
-                description: "Latest iPhone with A17 Pro chip"
-            },
-            laptop: {
-                brand: "Apple",
-                title: "MacBook Pro",
-                price: "$1,299",
-                description: "Powerful laptop with M3 chip"
-            }
-        };
-    </script>
-
     <!-- App Scripts -->
     <script type="text/babel">
-        const App = ({ initialVideoRef }) => {
-            const [model, setModel] = React.useState(null);
-            const [isLoading, setIsLoading] = React.useState(true);
-            const [error, setError] = React.useState(null);
-            const [detections, setDetections] = React.useState([]);
-            const [isProcessing, setIsProcessing] = React.useState(false);
-            const [showPrice, setShowPrice] = React.useState(true);
-            const [showBrand, setShowBrand] = React.useState(true);
-            const [showDescription, setShowDescription] = React.useState(true);
-            const [fps, setFps] = React.useState(0);
-            const [frameCount, setFrameCount] = React.useState(0);
-            const [lastTime, setLastTime] = React.useState(0);
+        // Brand logos mapping
+        const brandLogos = {
+            // Tech Brands
+            'apple': 'https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg',
+            'samsung': 'https://upload.wikimedia.org/wikipedia/commons/2/24/Samsung_Logo.svg',
+            'sony': 'https://upload.wikimedia.org/wikipedia/commons/2/29/Sony_logo.svg',
+            'lg': 'https://upload.wikimedia.org/wikipedia/commons/2/20/LG_symbol.svg',
+            'google': 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Google_2015_logo.svg',
+            'microsoft': 'https://upload.wikimedia.org/wikipedia/commons/9/96/Microsoft_logo_%282012%29.svg',
+            'intel': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Intel_logo_%282020%2C_light_blue%29.svg',
+            'amd': 'https://upload.wikimedia.org/wikipedia/commons/7/7c/AMD_Logo.svg',
+            'nvidia': 'https://upload.wikimedia.org/wikipedia/commons/2/21/Nvidia_logo.svg',
+            'qualcomm': 'https://upload.wikimedia.org/wikipedia/commons/9/93/Qualcomm-Logo.svg',
+            
+            // Sportswear
+            'nike': 'https://upload.wikimedia.org/wikipedia/commons/a/a6/Logo_NIKE.svg',
+            'adidas': 'https://upload.wikimedia.org/wikipedia/commons/2/20/Adidas_Logo.svg',
+            'puma': 'https://upload.wikimedia.org/wikipedia/commons/4/44/Puma_logo.svg',
+            'reebok': 'https://upload.wikimedia.org/wikipedia/commons/3/31/Reebok_2019_logo.svg',
+            'under armour': 'https://upload.wikimedia.org/wikipedia/commons/7/7c/Under_Armour_logo.svg',
+            'new balance': 'https://upload.wikimedia.org/wikipedia/commons/1/1d/New_Balance_logo.svg',
+            'converse': 'https://upload.wikimedia.org/wikipedia/commons/3/3b/Converse_logo.svg',
+            'vans': 'https://upload.wikimedia.org/wikipedia/commons/3/36/Vans-logo.svg',
+            'jordan': 'https://upload.wikimedia.org/wikipedia/commons/a/a6/Logo_NIKE.svg',
+            'asics': 'https://upload.wikimedia.org/wikipedia/commons/9/92/ASICS_logo.svg',
+            'fila': 'https://upload.wikimedia.org/wikipedia/commons/0/0f/Fila_logo.svg',
+            'mizuno': 'https://upload.wikimedia.org/wikipedia/commons/8/8c/Mizuno_Corporation_logo.svg',
+            
+            // Luxury Brands
+            'gucci': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Gucci_logo.svg',
+            'louis vuitton': 'https://upload.wikimedia.org/wikipedia/commons/9/9f/Louis_Vuitton_logo.svg',
+            'prada': 'https://upload.wikimedia.org/wikipedia/commons/3/3e/Prada_logo.svg',
+            'versace': 'https://upload.wikimedia.org/wikipedia/commons/8/89/Versace_logo.svg',
+            'calvin klein': 'https://upload.wikimedia.org/wikipedia/commons/5/5c/Calvin_Klein_logo.svg',
+            'tommy hilfiger': 'https://upload.wikimedia.org/wikipedia/commons/5/5c/Tommy_Hilfiger_Logo.svg',
+            'ralph lauren': 'https://upload.wikimedia.org/wikipedia/commons/d/d6/Ralph_Lauren_logo.svg',
+            'burberry': 'https://upload.wikimedia.org/wikipedia/commons/6/61/Burberry_logo.svg',
+            'hermes': 'https://upload.wikimedia.org/wikipedia/commons/4/4c/Herm%C3%A8s_logo.svg',
+            'chanel': 'https://upload.wikimedia.org/wikipedia/commons/7/7a/Chanel_logo.svg',
+            
+            // Fashion Brands
+            'levi\'s': 'https://upload.wikimedia.org/wikipedia/commons/2/21/Levi%27s_logo.svg',
+            'gap': 'https://upload.wikimedia.org/wikipedia/commons/7/7a/Gap_logo.svg',
+            'zara': 'https://upload.wikimedia.org/wikipedia/commons/5/53/Zara_logo.svg',
+            'h&m': 'https://upload.wikimedia.org/wikipedia/commons/5/53/H%26M-Logo.svg',
+            'uniqlo': 'https://upload.wikimedia.org/wikipedia/commons/9/92/UNIQLO_logo.svg',
+            'forever 21': 'https://upload.wikimedia.org/wikipedia/commons/8/86/Forever_21_logo.svg',
+            'american eagle': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/American_Eagle_Outfitters_logo.svg',
+            'hollister': 'https://upload.wikimedia.org/wikipedia/commons/8/8d/Hollister_logo.svg',
+            'abercrombie': 'https://upload.wikimedia.org/wikipedia/commons/8/8d/Abercrombie_%26_Fitch_Logo.svg',
+            'urban outfitters': 'https://upload.wikimedia.org/wikipedia/commons/7/7e/Urban_Outfitters_logo.svg',
+            
+            // Watch Brands
+            'rolex': 'https://upload.wikimedia.org/wikipedia/commons/d/d1/Rolex_logo.svg',
+            'omega': 'https://upload.wikimedia.org/wikipedia/commons/f/f4/Omega_logo.svg',
+            'tag heuer': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/TAG_Heuer_Logo.svg',
+            'cartier': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Cartier_logo.svg',
+            'breitling': 'https://upload.wikimedia.org/wikipedia/commons/8/8d/Breitling_logo.svg',
+            
+            // Tech Accessories
+            'beats': 'https://upload.wikimedia.org/wikipedia/commons/1/14/Beats_Electronics_logo.svg',
+            'bose': 'https://upload.wikimedia.org/wikipedia/commons/2/2e/Bose_logo.svg',
+            'jbl': 'https://upload.wikimedia.org/wikipedia/commons/0/0e/JBL_logo.svg',
+            'ray-ban': 'https://upload.wikimedia.org/wikipedia/commons/2/2e/Ray-Ban_logo.svg',
+            'oakley': 'https://upload.wikimedia.org/wikipedia/commons/4/4e/Oakley_logo.svg'
+        };
 
-            const videoRef = React.useRef(initialVideoRef || null);
-            const canvasRef = React.useRef(null);
-            const animationFrameRef = React.useRef(null);
+        // Function to detect brand from class name
+        function detectBrand(className) {
+            const lowerClassName = className.toLowerCase();
+            for (const [brand, _] of Object.entries(brandLogos)) {
+                if (lowerClassName.includes(brand)) {
+                    return brand;
+                }
+            }
+            return null;
+        }
+
+        // Debug logging function
+        function debugLog(message) {
+            console.log(message);
+            const debugInfo = document.getElementById('debug-info');
+            debugInfo.textContent = message;
+        }
+
+        // Error handling function
+        function showError(message) {
+            console.error(message);
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        // Check if required libraries are loaded
+        function checkDependencies() {
+            const dependencies = {
+                'React': typeof React !== 'undefined',
+                'ReactDOM': typeof ReactDOM !== 'undefined',
+                'TensorFlow.js': typeof tf !== 'undefined',
+                'COCO-SSD': typeof cocoSsd !== 'undefined'
+            };
+
+            const missing = Object.entries(dependencies)
+                .filter(([_, loaded]) => !loaded)
+                .map(([name]) => name);
+
+            if (missing.length > 0) {
+                throw new Error(`Missing dependencies: ${missing.join(', ')}`);
+            }
+
+            debugLog('All dependencies loaded successfully');
+        }
+
+        // Initialize webcam
+        async function initWebcam(facingMode = 'user') {
+            try {
+                debugLog(`Requesting camera access (${facingMode})...`);
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: facingMode,
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    } 
+                });
+                const videoElement = document.getElementById('video-feed');
+                
+                // Stop any existing stream
+                if (videoElement.srcObject) {
+                    videoElement.srcObject.getTracks().forEach(track => track.stop());
+                }
+                
+                videoElement.srcObject = stream;
+                
+                debugLog('Camera access granted');
+                
+                // Wait for video to be ready
+                return new Promise((resolve) => {
+                    videoElement.onloadedmetadata = () => {
+                        debugLog('Video stream ready');
+                        resolve(videoElement);
+                    };
+                });
+            } catch (err) {
+                const errorMsg = 'Error accessing webcam: ' + err.message;
+                debugLog(errorMsg);
+                showError(errorMsg);
+                throw err;
+            }
+        }
+
+        // App Component
+        const App = ({ initialVideoRef }) => {
+            const [detections, setDetections] = React.useState([]);
+            const [isModelLoading, setIsModelLoading] = React.useState(true);
+            const [loadingProgress, setLoadingProgress] = React.useState('Initializing...');
+            const [showToast, setShowToast] = React.useState(false);
+            const [error, setError] = React.useState(null);
+            const [isFrontCamera, setIsFrontCamera] = React.useState(true);
+            const [videoRef, setVideoRef] = React.useState(initialVideoRef);
+            const [isTransitioning, setIsTransitioning] = React.useState(false);
+            const [confidenceThreshold, setConfidenceThreshold] = React.useState(0.6);
+            const [trackedObjects, setTrackedObjects] = React.useState(new Map());
+            const modelRef = React.useRef(null);
+            const frameCountRef = React.useRef(0);
             const lastDetectionsRef = React.useRef([]);
 
-            // Initialize TensorFlow.js and load model
-            React.useEffect(() => {
-                const initModel = async () => {
-                    try {
-                        setIsLoading(true);
-                        await tf.ready();
-                        const efficientDet = await tf.loadGraphModel(
-                            'https://tfhub.dev/tensorflow/efficientdet/d0/1'
-                        );
-                        setModel(efficientDet);
-                        setIsLoading(false);
-                    } catch (err) {
-                        setError(`Failed to load model: ${err.message}`);
-                        setIsLoading(false);
-                    }
-                };
+            // Function to calculate IoU (Intersection over Union)
+            const calculateIoU = (box1, box2) => {
+                const [x1, y1, w1, h1] = box1;
+                const [x2, y2, w2, h2] = box2;
+                
+                const intersectionX = Math.max(x1, x2);
+                const intersectionY = Math.max(y1, y2);
+                const intersectionWidth = Math.min(x1 + w1, x2 + w2) - intersectionX;
+                const intersectionHeight = Math.min(y1 + h1, y2 + h2) - intersectionY;
+                
+                if (intersectionWidth <= 0 || intersectionHeight <= 0) return 0;
+                
+                const intersectionArea = intersectionWidth * intersectionHeight;
+                const box1Area = w1 * h1;
+                const box2Area = w2 * h2;
+                
+                return intersectionArea / (box1Area + box2Area - intersectionArea);
+            };
 
-                initModel();
-                return () => {
-                    if (animationFrameRef.current) {
-                        cancelAnimationFrame(animationFrameRef.current);
-                    }
-                };
-            }, []);
+            // Function to track objects between frames
+            const trackObjects = (newDetections) => {
+                const currentTime = Date.now();
+                const trackedObjectsMap = new Map(trackedObjects);
+                const matchedDetections = new Set();
 
-            // Initialize webcam
-            React.useEffect(() => {
-                const initWebcam = async () => {
-                    try {
-                        const stream = await navigator.mediaDevices.getUserMedia({
-                            video: {
-                                width: { ideal: 640 },
-                                height: { ideal: 480 },
-                                facingMode: 'environment'
-                            }
+                // Update existing tracks
+                for (const [id, track] of trackedObjectsMap) {
+                    let bestMatch = null;
+                    let bestIoU = 0.3; // Minimum IoU threshold
+
+                    for (const detection of newDetections) {
+                        if (matchedDetections.has(detection)) continue;
+
+                        const iou = calculateIoU(track.bbox, detection.bbox);
+                        if (iou > bestIoU) {
+                            bestIoU = iou;
+                            bestMatch = detection;
+                        }
+                    }
+
+                    if (bestMatch) {
+                        matchedDetections.add(bestMatch);
+                        trackedObjectsMap.set(id, {
+                            ...bestMatch,
+                            trackId: id,
+                            lastSeen: currentTime,
+                            confidence: bestMatch.score,
+                            history: [...track.history, { bbox: bestMatch.bbox, time: currentTime }]
                         });
-                        if (videoRef.current) {
-                            videoRef.current.srcObject = stream;
-                        }
-                    } catch (err) {
-                        setError(`Failed to access webcam: ${err.message}`);
+                    } else if (currentTime - track.lastSeen < 1000) {
+                        // Keep track alive for 1 second after last detection
+                        trackedObjectsMap.set(id, track);
+                    } else {
+                        trackedObjectsMap.delete(id);
                     }
-                };
-
-                initWebcam();
-            }, []);
-
-            // Detection loop
-            const detectObjects = React.useCallback(async () => {
-                if (!model || !videoRef.current || !canvasRef.current || isProcessing) return;
-
-                try {
-                    setIsProcessing(true);
-                    const video = videoRef.current;
-                    const canvas = canvasRef.current;
-                    const ctx = canvas.getContext('2d');
-
-                    // Set canvas size to match video
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-
-                    // Draw video frame to canvas
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-                    // Get image data and preprocess
-                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const tensor = tf.browser.fromPixels(imageData)
-                        .resizeBilinear([512, 512])
-                        .expandDims(0)
-                        .toFloat()
-                        .div(255.0);
-
-                    // Run inference
-                    const predictions = await model.predict(tensor);
-                    const boxes = await predictions[0].array();
-                    const scores = await predictions[1].array();
-                    const classes = await predictions[2].array();
-
-                    // Process detections
-                    const newDetections = [];
-                    for (let i = 0; i < scores[0].length; i++) {
-                        if (scores[0][i] > 0.5) {
-                            const [y1, x1, y2, x2] = boxes[0][i];
-                            const classId = classes[0][i];
-                            const score = scores[0][i];
-
-                            // Scale coordinates back to original size
-                            const scaledBox = {
-                                x: x1 * canvas.width,
-                                y: y1 * canvas.height,
-                                width: (x2 - x1) * canvas.width,
-                                height: (y2 - y1) * canvas.height
-                            };
-
-                            // Get product metadata
-                            const metadata = productDB[classId] || {
-                                brand: "Unknown",
-                                title: `Class ${classId}`,
-                                price: "N/A",
-                                description: "No description available"
-                            };
-
-                            newDetections.push({
-                                box: scaledBox,
-                                class: classId,
-                                score,
-                                metadata
-                            });
-                        }
-                    }
-
-                    // Update detections
-                    setDetections(newDetections);
-                    lastDetectionsRef.current = newDetections;
-
-                    // Draw detections
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-                    newDetections.forEach(detection => {
-                        const { box, score, metadata } = detection;
-                        
-                        // Draw bounding box
-                        ctx.strokeStyle = '#007AFF';
-                        ctx.lineWidth = 2;
-                        ctx.strokeRect(box.x, box.y, box.width, box.height);
-
-                        // Draw label background
-                        const labelText = [
-                            showBrand && metadata.brand,
-                            metadata.title,
-                            showPrice && metadata.price,
-                            showDescription && metadata.description
-                        ].filter(Boolean).join(' — ');
-
-                        ctx.font = '14px SF Pro Display';
-                        const textMetrics = ctx.measureText(labelText);
-                        const labelWidth = textMetrics.width + 20;
-                        const labelHeight = 24;
-
-                        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                        ctx.fillRect(
-                            box.x,
-                            box.y - labelHeight,
-                            labelWidth,
-                            labelHeight
-                        );
-
-                        // Draw label text
-                        ctx.fillStyle = 'white';
-                        ctx.fillText(
-                            labelText,
-                            box.x + 10,
-                            box.y - 8
-                        );
-                    });
-
-                    // Calculate FPS
-                    const now = performance.now();
-                    setFrameCount(prev => prev + 1);
-                    if (now - lastTime >= 1000) {
-                        setFps(Math.round((frameCount * 1000) / (now - lastTime)));
-                        setFrameCount(0);
-                        setLastTime(now);
-                    }
-
-                    // Cleanup
-                    tensor.dispose();
-                    predictions.forEach(p => p.dispose());
-
-                } catch (err) {
-                    console.error('Detection error:', err);
-                } finally {
-                    setIsProcessing(false);
-                    animationFrameRef.current = requestAnimationFrame(detectObjects);
                 }
-            }, [model, isProcessing, showPrice, showBrand, showDescription]);
 
-            // Start detection loop when model is loaded
+                // Add new tracks
+                for (const detection of newDetections) {
+                    if (!matchedDetections.has(detection)) {
+                        const newId = Date.now() + Math.random();
+                        trackedObjectsMap.set(newId, {
+                            ...detection,
+                            trackId: newId,
+                            lastSeen: currentTime,
+                            confidence: detection.score,
+                            history: [{ bbox: detection.bbox, time: currentTime }]
+                        });
+                    }
+                }
+
+                setTrackedObjects(trackedObjectsMap);
+                return Array.from(trackedObjectsMap.values());
+            };
+
+            // Load the COCO-SSD model with enhanced configuration
             React.useEffect(() => {
-                if (model && !isLoading) {
-                    animationFrameRef.current = requestAnimationFrame(detectObjects);
-                }
-                return () => {
-                    if (animationFrameRef.current) {
-                        cancelAnimationFrame(animationFrameRef.current);
+                const loadModel = async () => {
+                    try {
+                        setLoadingProgress('Loading TensorFlow.js...');
+                        debugLog('Loading TensorFlow.js...');
+                        
+                        // Wait for TensorFlow.js to be ready
+                        await tf.ready();
+                        setLoadingProgress('TensorFlow.js loaded, initializing COCO-SSD model...');
+                        debugLog('TensorFlow.js loaded, initializing COCO-SSD model...');
+                        
+                        // Load the COCO-SSD model with enhanced configuration
+                        const model = await cocoSsd.load({
+                            base: 'lite_mobilenet_v2',
+                            modelUrl: 'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js',
+                            threshold: confidenceThreshold
+                        });
+                        
+                        debugLog('COCO-SSD model loaded successfully');
+                        setLoadingProgress('Model loaded successfully!');
+                        modelRef.current = model;
+                        setIsModelLoading(false);
+                    } catch (err) {
+                        const errorMsg = 'Failed to load the AI model: ' + err.message;
+                        debugLog(errorMsg);
+                        setError(errorMsg);
                     }
                 };
-            }, [model, isLoading, detectObjects]);
+                loadModel();
+            }, [confidenceThreshold]);
 
-            // Handle capture
-            const handleCapture = () => {
-                const canvas = canvasRef.current;
-                if (!canvas) return;
+            // Run detection with enhanced tracking
+            React.useEffect(() => {
+                let animationFrameId;
+                const detectObjects = async () => {
+                    if (modelRef.current && videoRef && !isTransitioning) {
+                        try {
+                            frameCountRef.current++;
+                            
+                            // Only run full detection every 3 frames
+                            if (frameCountRef.current % 3 === 0) {
+                                const predictions = await modelRef.current.detect(videoRef);
+                                const filteredPredictions = predictions.filter(pred => pred.score >= confidenceThreshold);
+                                lastDetectionsRef.current = filteredPredictions;
+                                
+                                // Track objects between frames
+                                const trackedDetections = trackObjects(filteredPredictions);
+                                setDetections(trackedDetections);
+                            } else {
+                                // Use tracking for intermediate frames
+                                const trackedDetections = trackObjects(lastDetectionsRef.current);
+                                setDetections(trackedDetections);
+                            }
+                        } catch (err) {
+                            const errorMsg = 'Detection error: ' + err.message;
+                            debugLog(errorMsg);
+                            setError(errorMsg);
+                        }
+                    }
+                    animationFrameId = requestAnimationFrame(detectObjects);
+                };
 
-                const link = document.createElement('a');
-                link.download = `detection-${Date.now()}.png`;
-                link.href = canvas.toDataURL();
-                link.click();
+                if (!isModelLoading && !error) {
+                    detectObjects();
+                }
+
+                return () => {
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                    }
+                };
+            }, [isModelLoading, error, videoRef, isTransitioning, confidenceThreshold]);
+
+            // Handle camera switch
+            const handleCameraSwitch = async () => {
+                try {
+                    setIsTransitioning(true);
+                    const transitionElement = document.getElementById('camera-transition');
+                    transitionElement.classList.add('active');
+                    
+                    // Wait for transition
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    const newFacingMode = isFrontCamera ? 'environment' : 'user';
+                    const newVideoRef = await initWebcam(newFacingMode);
+                    setVideoRef(newVideoRef);
+                    setIsFrontCamera(!isFrontCamera);
+                    
+                    // Wait for video to be ready
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    transitionElement.classList.remove('active');
+                    setIsTransitioning(false);
+                } catch (err) {
+                    const errorMsg = 'Failed to switch camera: ' + err.message;
+                    debugLog(errorMsg);
+                    setError(errorMsg);
+                    setIsTransitioning(false);
+                }
+            };
+
+            const handleShare = () => {
+                try {
+                    const items = detections
+                        .filter(det => ['person', 'backpack', 'handbag', 'suitcase', 'bottle', 'wine glass', 'cup', 'bowl', 'chair', 'couch', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'].includes(det.class))
+                        .map(det => det.class);
+                    
+                    const text = `Today's Fit: ${items.join(', ')}`;
+                    navigator.clipboard.writeText(text);
+                    setShowToast(true);
+                    setTimeout(() => setShowToast(false), 2000);
+                } catch (err) {
+                    const errorMsg = 'Share error: ' + err.message;
+                    debugLog(errorMsg);
+                    setError(errorMsg);
+                }
             };
 
             if (error) {
-                return React.createElement('div', { className: 'error-message' }, error);
-            }
-
-            if (isLoading) {
-                return React.createElement('div', { className: 'loading-indicator' },
-                    React.createElement('div', { className: 'loading-spinner' }),
-                    React.createElement('div', { className: 'text-lg font-semibold' }, 'Loading AI Model...'),
-                    React.createElement('div', { className: 'text-sm text-gray-500 mt-2' }, 'This may take a few moments')
+                return React.createElement('div', { className: 'fixed inset-0 flex items-center justify-center bg-black bg-opacity-50' },
+                    React.createElement('div', { className: 'bg-black p-6 rounded-lg border border-[#00ffff] text-[#00ffff] max-w-md' },
+                        React.createElement('h2', { className: 'text-xl font-bold mb-4' }, 'Error'),
+                        React.createElement('p', { className: 'mb-4' }, error),
+                        React.createElement('button', {
+                            onClick: () => window.location.reload(),
+                            className: 'bg-[#00ffff] bg-opacity-10 text-[#00ffff] px-4 py-2 rounded border border-[#00ffff] hover:bg-opacity-20'
+                        }, 'Refresh Page')
+                    )
                 );
             }
 
             return React.createElement('div', { className: 'relative w-full h-screen' },
-                // Status Bar
-                React.createElement('div', { className: 'status-bar' },
-                    React.createElement('span', { className: 'status-bar-time' }, 
-                        new Date().toLocaleTimeString('en-US', { 
-                            hour: 'numeric', 
-                            minute: '2-digit',
-                            hour12: true 
-                        })
-                    ),
-                    React.createElement('div', { className: 'status-bar-icons' },
-                        React.createElement('span', { className: 'text-sm' }, `${fps} FPS`),
-                        React.createElement('i', { className: 'fas fa-wifi' }),
-                        React.createElement('i', { className: 'fas fa-signal' }),
-                        React.createElement('i', { className: 'fas fa-battery-full' })
-                    )
-                ),
-
-                // Toggle Controls
-                React.createElement('div', { className: 'toggle-controls' },
-                    React.createElement('button', {
-                        className: `toggle-button ${showBrand ? 'active' : ''}`,
-                        onClick: () => setShowBrand(!showBrand)
-                    },
-                        React.createElement('i', { className: 'fas fa-tag' }),
-                        'Brand'
-                    ),
-                    React.createElement('button', {
-                        className: `toggle-button ${showPrice ? 'active' : ''}`,
-                        onClick: () => setShowPrice(!showPrice)
-                    },
-                        React.createElement('i', { className: 'fas fa-dollar-sign' }),
-                        'Price'
-                    ),
-                    React.createElement('button', {
-                        className: `toggle-button ${showDescription ? 'active' : ''}`,
-                        onClick: () => setShowDescription(!showDescription)
-                    },
-                        React.createElement('i', { className: 'fas fa-info-circle' }),
-                        'Description'
-                    )
-                ),
-
-                // Capture Button
+                // Camera Switch Button
                 React.createElement('button', {
-                    className: 'capture-button',
-                    onClick: handleCapture
+                    onClick: handleCameraSwitch,
+                    className: 'camera-switch',
+                    title: `Switch to ${isFrontCamera ? 'back' : 'front'} camera`,
+                    disabled: isTransitioning
+                }, '📷'),
+                // Detection Labels with enhanced information
+                detections.map((detection, index) => {
+                    const brand = detectBrand(detection.class);
+                    const confidence = Math.round(detection.confidence * 100);
+                    const isNew = Date.now() - detection.lastSeen < 500;
+                    
+                    return React.createElement('div', {
+                        key: detection.trackId || index,
+                        className: `detection-label ${isNew ? 'animate-pulse' : ''}`,
+                        style: {
+                            left: `${detection.bbox[0]}px`,
+                            top: `${detection.bbox[1]}px`,
+                            width: `${detection.bbox[2]}px`,
+                            height: `${detection.bbox[3]}px`
+                        }
+                    },
+                        React.createElement('div', { className: 'flex items-center gap-3' },
+                            brand && React.createElement('img', {
+                                src: brandLogos[brand],
+                                alt: brand,
+                                className: 'brand-logo'
+                            }),
+                            React.createElement('div', { className: 'flex flex-col' },
+                                React.createElement('span', { className: 'font-semibold text-[15px]' }, detection.class),
+                                React.createElement('div', { className: 'confidence-bar' },
+                                    React.createElement('div', {
+                                        className: 'confidence-bar-fill',
+                                        style: { width: `${confidence}%` }
+                                    })
+                                )
+                            ),
+                            React.createElement('a', {
+                                href: `https://www.google.com/search?tbm=shop&q=${detection.class}`,
+                                target: '_blank',
+                                rel: 'noopener noreferrer',
+                                className: 'text-[#007AFF] hover:text-[#007AFF] opacity-80'
+                            }, '🔍')
+                        )
+                    );
+                }),
+                // Share Button
+                React.createElement('button', {
+                    onClick: handleShare,
+                    className: 'share-button'
+                }, 'Share My Fit'),
+                // Loading Indicator
+                isModelLoading && React.createElement('div', {
+                    className: 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-50 text-[#00ffff] px-4 py-2 rounded text-center border border-[#00ffff]'
                 },
-                    React.createElement('i', { className: 'fas fa-camera' })
+                    React.createElement('div', { className: 'loading-spinner' }),
+                    React.createElement('p', { className: 'mt-2 font-rajdhani' }, loadingProgress)
                 ),
-
-                // Debug Info
-                React.createElement('div', { 
-                    className: 'fixed bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded text-sm'
-                }, `Detections: ${detections.length}`)
+                // Toast Message
+                showToast && React.createElement('div', {
+                    className: 'toast-message'
+                }, 'Outfit copied to clipboard!')
             );
         };
 
         // Initialize app
-        const root = ReactDOM.createRoot(document.getElementById('app-root'));
-        root.render(React.createElement(App));
+        async function initApp() {
+            try {
+                debugLog('Initializing app...');
+                checkDependencies();
+                const videoElement = await initWebcam();
+                debugLog('Creating React root...');
+                const root = ReactDOM.createRoot(document.getElementById('app-root'));
+                debugLog('Rendering app...');
+                root.render(React.createElement(App, { initialVideoRef: videoElement }));
+                debugLog('App initialized successfully');
+            } catch (err) {
+                const errorMsg = 'Failed to initialize app: ' + err.message;
+                debugLog(errorMsg);
+                showError(errorMsg);
+            }
+        }
+
+        // Start the app
+        initApp();
     </script>
 </body>
 </html> 
