@@ -522,6 +522,11 @@
                 );
             };
 
+            // Object tracking system
+            const [trackedObjects, setTrackedObjects] = React.useState(new Map());
+            const nextIdRef = React.useRef(1);
+            const lastUpdateTimeRef = React.useRef(Date.now());
+
             // Enhanced mock product metadata with more objects and styling
             const mockProductData = {
                 'person': {
@@ -621,6 +626,50 @@
                         lineWidth: 2,
                         lineDash: [4, 4],
                         labelBg: 'rgba(165, 42, 42, 0.7)'
+                    }
+                },
+                'bottle': {
+                    title: 'Bottle',
+                    description: 'Container detected',
+                    color: '#4B0082',
+                    brand: 'Container',
+                    style: {
+                        lineWidth: 2,
+                        lineDash: [],
+                        labelBg: 'rgba(75, 0, 130, 0.7)'
+                    }
+                },
+                'cup': {
+                    title: 'Cup',
+                    description: 'Drinking vessel detected',
+                    color: '#FF1493',
+                    brand: 'Container',
+                    style: {
+                        lineWidth: 2,
+                        lineDash: [2, 2],
+                        labelBg: 'rgba(255, 20, 147, 0.7)'
+                    }
+                },
+                'chair': {
+                    title: 'Chair',
+                    description: 'Seating detected',
+                    color: '#32CD32',
+                    brand: 'Furniture',
+                    style: {
+                        lineWidth: 2,
+                        lineDash: [],
+                        labelBg: 'rgba(50, 205, 50, 0.7)'
+                    }
+                },
+                'book': {
+                    title: 'Book',
+                    description: 'Reading material detected',
+                    color: '#8B4513',
+                    brand: 'Book',
+                    style: {
+                        lineWidth: 1,
+                        lineDash: [],
+                        labelBg: 'rgba(139, 69, 19, 0.7)'
                     }
                 }
             };
