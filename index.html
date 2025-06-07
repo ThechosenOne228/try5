@@ -482,26 +482,6 @@
             const overlayCanvasRef = React.useRef(null);
             const overlayContextRef = React.useRef(null);
 
-            // Constants for model and canvas dimensions
-            const MODEL_WIDTH = 640;
-            const MODEL_HEIGHT = 640;
-
-            // Scale bounding box coordinates from model to canvas
-            const scaleBoundingBox = React.useCallback((box, canvasWidth, canvasHeight) => {
-                const [xMin, yMin, xMax, yMax] = box;
-
-                // Scale coordinates to canvas size
-                const scaleX = canvasWidth / MODEL_WIDTH;
-                const scaleY = canvasHeight / MODEL_HEIGHT;
-
-                const x = xMin * scaleX;
-                const y = yMin * scaleY;
-                const width = (xMax - xMin) * scaleX;
-                const height = (yMax - yMin) * scaleY;
-
-                return [x, y, width, height];
-            }, []);
-
             // Target object classes with their minimum confidence thresholds
             const TARGET_CLASSES = {
                 'person': 0.6,
@@ -515,69 +495,34 @@
             const targetFps = 15;
             const frameInterval = 1000 / targetFps;
 
-            // Object tracking system
-            const [trackedObjects, setTrackedObjects] = React.useState(new Map());
-            const nextIdRef = React.useRef(1);
-            const lastUpdateTimeRef = React.useRef(Date.now());
+            // Calculate IoU (Intersection over Union) between two bounding boxes
+            const calculateIoU = (box1, box2) => {
+                const [x1, y1, w1, h1] = box1;
+                const [x2, y2, w2, h2] = box2;
+                
+                const intersectionX = Math.max(x1, x2);
+                const intersectionY = Math.max(y1, y2);
+                const intersectionWidth = Math.min(x1 + w1, x2 + w2) - intersectionX;
+                const intersectionHeight = Math.min(y1 + h1, y2 + h2) - intersectionY;
+                
+                if (intersectionWidth <= 0 || intersectionHeight <= 0) return 0;
+                
+                const intersectionArea = intersectionWidth * intersectionHeight;
+                const box1Area = w1 * h1;
+                const box2Area = w2 * h2;
+                
+                return intersectionArea / (box1Area + box2Area - intersectionArea);
+            };
 
-            // Color detection system
-            const detectColor = React.useCallback((ctx, x, y, width, height) => {
-                try {
-                    const imageData = ctx.getImageData(x, y, width, height);
-                    const data = imageData.data;
-                    let r = 0, g = 0, b = 0;
-                    let count = 0;
+            // Smooth bounding box coordinates
+            const smoothBoundingBox = (current, previous, alpha = 0.3) => {
+                if (!previous) return current;
+                return current.map((coord, i) => 
+                    previous[i] + alpha * (coord - previous[i])
+                );
+            };
 
-                    // Sample pixels for color analysis
-                    for (let i = 0; i < data.length; i += 16) { // Sample every 4th pixel
-                        r += data[i];
-                        g += data[i + 1];
-                        b += data[i + 2];
-                        count++;
-                    }
-
-                    r = Math.round(r / count);
-                    g = Math.round(g / count);
-                    b = Math.round(b / count);
-
-                    // Convert RGB to color name
-                    const colors = {
-                        'red': [255, 0, 0],
-                        'green': [0, 255, 0],
-                        'blue': [0, 0, 255],
-                        'yellow': [255, 255, 0],
-                        'purple': [128, 0, 128],
-                        'orange': [255, 165, 0],
-                        'pink': [255, 192, 203],
-                        'brown': [165, 42, 42],
-                        'black': [0, 0, 0],
-                        'white': [255, 255, 255],
-                        'gray': [128, 128, 128]
-                    };
-
-                    let closestColor = 'unknown';
-                    let minDistance = Infinity;
-
-                    for (const [color, [cr, cg, cb]] of Object.entries(colors)) {
-                        const distance = Math.sqrt(
-                            Math.pow(r - cr, 2) +
-                            Math.pow(g - cg, 2) +
-                            Math.pow(b - cb, 2)
-                        );
-                        if (distance < minDistance) {
-                            minDistance = distance;
-                            closestColor = color;
-                        }
-                    }
-
-                    return closestColor;
-                } catch (error) {
-                    console.error('Color detection error:', error);
-                    return 'unknown';
-                }
-            }, []);
-
-            // Enhanced mock product metadata with more clothing categories and attributes
+            // Enhanced mock product metadata with more objects and styling
             const mockProductData = {
                 'person': {
                     title: 'Person',
@@ -590,80 +535,11 @@
                         labelBg: 'rgba(255, 0, 0, 0.7)'
                     }
                 },
-                'shirt': {
-                    title: 'Shirt',
-                    description: 'Upper garment',
-                    color: '#FF00FF',
-                    brand: 'Clothing',
-                    attributes: {
-                        sleeveLength: ['short sleeve', 'long sleeve', 'sleeveless'],
-                        pattern: ['plain', 'striped', 'printed', 'checkered'],
-                        style: ['casual', 'formal', 'sport']
-                    },
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(255, 0, 255, 0.7)'
-                    }
-                },
-                't-shirt': {
-                    title: 'T-Shirt',
-                    description: 'Casual top',
-                    color: '#FF00FF',
-                    brand: 'Clothing',
-                    attributes: {
-                        sleeveLength: ['short sleeve', 'sleeveless'],
-                        pattern: ['plain', 'graphic', 'printed'],
-                        style: ['casual', 'sport']
-                    },
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(255, 0, 255, 0.7)'
-                    }
-                },
-                'dress': {
-                    title: 'Dress',
-                    description: 'One-piece garment',
-                    color: '#FF69B4',
-                    brand: 'Clothing',
-                    attributes: {
-                        length: ['mini', 'midi', 'maxi'],
-                        pattern: ['plain', 'floral', 'striped'],
-                        style: ['casual', 'formal', 'evening']
-                    },
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(255, 105, 180, 0.7)'
-                    }
-                },
-                'pants': {
-                    title: 'Pants',
-                    description: 'Lower garment',
+                'car': {
+                    title: 'Vehicle',
+                    description: 'Automobile detected',
                     color: '#0000FF',
-                    brand: 'Clothing',
-                    attributes: {
-                        length: ['full length', 'cropped', 'shorts'],
-                        fit: ['slim', 'regular', 'loose'],
-                        style: ['casual', 'formal', 'sport']
-                    },
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(0, 0, 255, 0.7)'
-                    }
-                },
-                'jeans': {
-                    title: 'Jeans',
-                    description: 'Denim pants',
-                    color: '#0000FF',
-                    brand: 'Clothing',
-                    attributes: {
-                        fit: ['skinny', 'straight', 'bootcut'],
-                        wash: ['light', 'medium', 'dark'],
-                        style: ['casual']
-                    },
+                    brand: 'Vehicle',
                     style: {
                         lineWidth: 2,
                         lineDash: [],
@@ -675,70 +551,39 @@
                     description: 'Shoe detected',
                     color: '#00FF00',
                     brand: 'Footwear',
-                    attributes: {
-                        type: ['sneakers', 'boots', 'sandals', 'formal'],
-                        style: ['casual', 'sport', 'formal']
-                    },
                     style: {
                         lineWidth: 2,
                         lineDash: [5, 5],
                         labelBg: 'rgba(0, 255, 0, 0.7)'
                     }
                 },
-                'sneakers': {
-                    title: 'Sneakers',
-                    description: 'Athletic shoes',
-                    color: '#00FF00',
-                    brand: 'Footwear',
-                    attributes: {
-                        type: ['running', 'lifestyle', 'basketball'],
-                        style: ['sport', 'casual']
-                    },
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [5, 5],
-                        labelBg: 'rgba(0, 255, 0, 0.7)'
-                    }
-                },
-                'boots': {
-                    title: 'Boots',
-                    description: 'Footwear',
-                    color: '#8B4513',
-                    brand: 'Footwear',
-                    attributes: {
-                        type: ['ankle', 'knee-high', 'hiking'],
-                        style: ['casual', 'formal']
-                    },
+                'cell phone': {
+                    title: 'Mobile Device',
+                    description: 'Smartphone detected',
+                    color: '#FF00FF',
+                    brand: 'Device',
                     style: {
                         lineWidth: 2,
                         lineDash: [],
-                        labelBg: 'rgba(139, 69, 19, 0.7)'
+                        labelBg: 'rgba(255, 0, 255, 0.7)'
                     }
                 },
-                'hat': {
-                    title: 'Hat',
-                    description: 'Headwear',
-                    color: '#FFA500',
-                    brand: 'Accessory',
-                    attributes: {
-                        type: ['cap', 'beanie', 'fedora'],
-                        style: ['casual', 'formal']
-                    },
+                'laptop': {
+                    title: 'Computer',
+                    description: 'Laptop detected',
+                    color: '#FFFF00',
+                    brand: 'Computer',
                     style: {
                         lineWidth: 2,
-                        lineDash: [3, 3],
-                        labelBg: 'rgba(255, 165, 0, 0.7)'
+                        lineDash: [],
+                        labelBg: 'rgba(255, 255, 0, 0.7)'
                     }
                 },
                 'glasses': {
                     title: 'Eyewear',
-                    description: 'Glasses',
+                    description: 'Glasses detected',
                     color: '#00FFFF',
-                    brand: 'Accessory',
-                    attributes: {
-                        type: ['sunglasses', 'prescription', 'reading'],
-                        style: ['casual', 'formal']
-                    },
+                    brand: 'Eyewear',
                     style: {
                         lineWidth: 1,
                         lineDash: [2, 2],
@@ -747,13 +592,9 @@
                 },
                 'watch': {
                     title: 'Watch',
-                    description: 'Timepiece',
+                    description: 'Timepiece detected',
                     color: '#FFA500',
-                    brand: 'Accessory',
-                    attributes: {
-                        type: ['analog', 'digital', 'smart'],
-                        style: ['casual', 'formal', 'sport']
-                    },
+                    brand: 'Watch',
                     style: {
                         lineWidth: 1,
                         lineDash: [3, 3],
@@ -762,13 +603,9 @@
                 },
                 'backpack': {
                     title: 'Backpack',
-                    description: 'Bag',
+                    description: 'Bag detected',
                     color: '#800080',
                     brand: 'Bag',
-                    attributes: {
-                        type: ['school', 'travel', 'hiking'],
-                        style: ['casual', 'sport']
-                    },
                     style: {
                         lineWidth: 2,
                         lineDash: [],
@@ -777,13 +614,9 @@
                 },
                 'handbag': {
                     title: 'Bag',
-                    description: 'Handbag',
+                    description: 'Handbag detected',
                     color: '#A52A2A',
                     brand: 'Bag',
-                    attributes: {
-                        type: ['tote', 'clutch', 'shoulder'],
-                        style: ['casual', 'formal']
-                    },
                     style: {
                         lineWidth: 2,
                         lineDash: [4, 4],
@@ -844,203 +677,261 @@
                 return Array.from(currentTracks.values());
             }, []);
 
-            // Initialize detection and overlay canvases
+            // Initialize canvases and handle window resize
             React.useEffect(() => {
-                const detectionCanvas = detectionCanvasRef.current;
-                const overlayCanvas = overlayCanvasRef.current;
-                
-                if (detectionCanvas && overlayCanvas) {
-                    // Set detection canvas to model input size
-                    detectionCanvas.width = 640;
-                    detectionCanvas.height = 640;
-                    detectionCanvas.style.display = 'none'; // Hide detection canvas
-                    
-                    // Set overlay canvas to match video size
-                    overlayCanvas.width = 640;
-                    overlayCanvas.height = 480;
-                    overlayCanvas.style.position = 'absolute';
-                    overlayCanvas.style.top = '0';
-                    overlayCanvas.style.left = '0';
-                    overlayCanvas.style.pointerEvents = 'none';
-                    overlayCanvas.style.zIndex = '1000';
-                    
-                    // Initialize contexts
-                    const detectionCtx = detectionCanvas.getContext('2d');
-                    const overlayCtx = overlayCanvas.getContext('2d');
-                    
-                    if (detectionCtx && overlayCtx) {
-                        detectionContextRef.current = detectionCtx;
-                        overlayContextRef.current = overlayCtx;
+                const initCanvases = () => {
+                    // Initialize detection canvas
+                    const detectionCanvas = detectionCanvasRef.current;
+                    if (detectionCanvas) {
+                        detectionCanvas.width = 640;
+                        detectionCanvas.height = 480;
+                        detectionCanvas.style.display = 'none'; // Hide detection canvas
+                        const detectionCtx = detectionCanvas.getContext('2d');
+                        if (detectionCtx) {
+                            detectionContextRef.current = detectionCtx;
+                        }
                     }
-                }
+
+                    // Initialize overlay canvas
+                    const overlayCanvas = overlayCanvasRef.current;
+                    if (overlayCanvas) {
+                        overlayCanvas.width = window.innerWidth;
+                        overlayCanvas.height = window.innerHeight;
+                        overlayCanvas.style.position = 'fixed';
+                        overlayCanvas.style.top = '0';
+                        overlayCanvas.style.left = '0';
+                        overlayCanvas.style.pointerEvents = 'none';
+                        overlayCanvas.style.zIndex = '1000';
+                        const overlayCtx = overlayCanvas.getContext('2d');
+                        if (overlayCtx) {
+                            overlayContextRef.current = overlayCtx;
+                        }
+                    }
+                };
+
+                initCanvases();
+                window.addEventListener('resize', initCanvases);
+                return () => window.removeEventListener('resize', initCanvases);
             }, []);
 
-            // Draw detection overlays with enhanced visibility
+            // Draw detection overlays with optimized rendering
             const drawOverlays = React.useCallback((detections) => {
                 if (!overlayContextRef.current || !detections) return;
 
                 const ctx = overlayContextRef.current;
                 const canvas = overlayCanvasRef.current;
-                const video = videoRef.current;
                 
-                if (!canvas || !video) return;
+                if (!canvas) return;
                 
-                // Set canvas dimensions to match video
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
+                // Ensure canvas dimensions match window
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
                 
-                // Clear canvas completely
+                // Clear previous frame completely
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Set default styles
-                ctx.font = 'bold 16px Arial';
-                ctx.textBaseline = 'top';
-
-                // Draw tracked detections with enhanced styling
+                // Draw only live detections
                 detections.forEach(detection => {
                     if (!detection.bbox || detection.bbox.length !== 4) return;
                     
-                    // Scale coordinates to canvas size
-                    const [x, y, width, height] = scaleBoundingBox(
-                        detection.bbox,
-                        canvas.width,
-                        canvas.height
-                    );
-
+                    const [x, y, width, height] = detection.bbox;
                     const metadata = mockProductData[detection.class] || {
                         title: detection.class,
                         description: 'Object detected',
-                        color: '#FF0000', // Default to red if no color specified
+                        color: '#FFFFFF',
                         brand: detection.class,
                         style: {
-                            lineWidth: 4, // Increased line width
+                            lineWidth: 2,
                             lineDash: [],
-                            labelBg: 'rgba(0, 0, 0, 0.8)'
+                            labelBg: 'rgba(255, 255, 255, 0.7)'
                         }
                     };
 
-                    // Detect color for clothing items
-                    let detectedColor = 'unknown';
-                    if (['shirt', 't-shirt', 'dress', 'pants', 'jeans', 'shoe', 'sneakers', 'boots', 'hat', 'backpack', 'handbag'].includes(detection.class)) {
-                        detectedColor = detectColor(ctx, x, y, width, height);
-                    }
+                    // Ensure coordinates are within canvas bounds
+                    const safeX = Math.max(0, Math.min(x, canvas.width));
+                    const safeY = Math.max(0, Math.min(y, canvas.height));
+                    const safeWidth = Math.min(width, canvas.width - safeX);
+                    const safeHeight = Math.min(height, canvas.height - safeY);
 
-                    // Match with product database
-                    const matchedProduct = matchProduct(detection, detectedColor);
-
-                    // Draw bounding box with enhanced visibility
+                    // Draw bounding box with enhanced styling
                     ctx.strokeStyle = metadata.color;
                     ctx.lineWidth = metadata.style.lineWidth;
-                    ctx.setLineDash([]);
-                    
-                    // Draw box with exact dimensions and fill
-                    ctx.beginPath();
-                    ctx.rect(x, y, width, height);
-                    
-                    // Fill box with semi-transparent color
-                    ctx.fillStyle = `${metadata.color}40`; // 25% opacity
-                    ctx.fill();
-                    
-                    // Draw border with enhanced visibility
-                    ctx.stroke();
+                    if (metadata.style.lineDash.length > 0) {
+                        ctx.setLineDash(metadata.style.lineDash);
+                    } else {
+                        ctx.setLineDash([]);
+                    }
+                    ctx.strokeRect(safeX, safeY, safeWidth, safeHeight);
 
-                    // Draw label with enhanced visibility
+                    // Calculate label position (prefer top-left, fallback to bottom)
                     const labelText = [
-                        matchedProduct ? matchedProduct.name : metadata.brand,
-                        matchedProduct ? matchedProduct.price : '',
-                        matchedProduct ? matchedProduct.description : metadata.title,
-                        detectedColor !== 'unknown' ? `${detectedColor}` : '',
-                        metadata.attributes ? Object.entries(metadata.attributes)
-                            .map(([key, values]) => `${key}: ${values[0]}`)
-                            .join(', ') : '',
-                        metadata.description
+                        `${metadata.brand}`,
+                        `${metadata.title}`,
+                        `${metadata.description}`
                     ].filter(Boolean);
 
-                    // Calculate label dimensions
+                    ctx.font = '14px Arial';
                     const textMetrics = ctx.measureText(labelText[0]);
                     const labelWidth = Math.max(...labelText.map(text => ctx.measureText(text).width)) + 20;
                     const labelHeight = labelText.length * 20 + 10;
 
-                    // Position label relative to box
-                    let labelX = x;
-                    let labelY = y - labelHeight - 5;
+                    // Determine if label should go on top or bottom
+                    const hasSpaceOnTop = safeY > labelHeight;
+                    const labelY = hasSpaceOnTop ? safeY - labelHeight : safeY + safeHeight;
+                    const labelX = Math.min(safeX, canvas.width - labelWidth);
 
-                    // Adjust label position if it would go off screen
-                    if (labelY < 0) {
-                        labelY = y + height + 5;
-                    }
-                    if (labelX + labelWidth > canvas.width) {
-                        labelX = canvas.width - labelWidth;
-                    }
+                    // Draw label background with object-specific color
+                    ctx.fillStyle = metadata.style.labelBg;
+                    ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
 
-                    // Draw label background with enhanced contrast
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
-                    ctx.beginPath();
-                    ctx.roundRect(labelX, labelY, labelWidth, labelHeight, 5);
-                    ctx.fill();
-
-                    // Draw label text with enhanced visibility
+                    // Draw label text
                     ctx.fillStyle = '#FFFFFF';
-                    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-                    ctx.shadowBlur = 3;
-                    ctx.shadowOffsetX = 1;
-                    ctx.shadowOffsetY = 1;
-                    
                     labelText.forEach((text, index) => {
                         ctx.fillText(text, labelX + 10, labelY + 20 + (index * 20));
                     });
 
-                    // Reset styles
-                    ctx.shadowColor = 'transparent';
+                    // Reset line dash
                     ctx.setLineDash([]);
                 });
-            }, [detectColor, matchProduct, scaleBoundingBox]);
+            }, []);
 
-            // Update detection loop with proper async handling
+            // Optimized detection loop with FPS control
             const detectObjects = React.useCallback(async () => {
-                if (!videoRef.current || !detectionCanvasRef.current || !modelRef.current) return;
+                const now = performance.now();
+                const elapsed = now - lastFrameTimeRef.current;
 
-                const video = videoRef.current;
-                const canvas = detectionCanvasRef.current;
-                const ctx = canvas.getContext('2d');
+                // Skip frame if we're running too fast
+                if (elapsed < frameInterval) {
+                    requestAnimationFrame(detectObjects);
+                    return;
+                }
 
-                if (!ctx) return;
+                if (!modelRef.current || !videoRef || !detectionContextRef.current || isTransitioning || isDetectingRef.current) {
+                    requestAnimationFrame(detectObjects);
+                    return;
+                }
 
                 try {
-                    // Set canvas dimensions to match video
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
+                    isDetectingRef.current = true;
+                    lastFrameTimeRef.current = now;
 
-                    // Draw video frame
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-                    // Run detection and await result
-                    const predictions = await modelRef.current.detect(canvas);
+                    // Scale down video frame for detection
+                    const ctx = detectionContextRef.current;
+                    const canvas = detectionCanvasRef.current;
                     
-                    // Filter predictions with strict bounds checking
-                    const validPredictions = predictions.filter(pred => 
-                        pred.score > 0.5 && 
-                        pred.bbox && 
-                        pred.bbox.length === 4 &&
-                        pred.bbox[0] >= 0 && 
-                        pred.bbox[1] >= 0 && 
-                        pred.bbox[2] > 0 && 
-                        pred.bbox[3] > 0 &&
-                        pred.bbox[0] + pred.bbox[2] <= MODEL_WIDTH &&
-                        pred.bbox[1] + pred.bbox[3] <= MODEL_HEIGHT
-                    );
-
-                    // Track objects with precise coordinates
-                    const trackedDetections = trackObjects(validPredictions);
+                    if (!ctx || !canvas || !videoRef.videoWidth || !videoRef.videoHeight) {
+                        requestAnimationFrame(detectObjects);
+                        return;
+                    }
                     
-                    // Update state and draw overlays
-                    setDetections(trackedDetections);
-                    drawOverlays(trackedDetections);
+                    // Clear previous frame
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Calculate aspect ratio to maintain video proportions
+                    const videoAspectRatio = videoRef.videoWidth / videoRef.videoHeight;
+                    const canvasAspectRatio = canvas.width / canvas.height;
+                    
+                    let drawWidth = canvas.width;
+                    let drawHeight = canvas.height;
+                    let offsetX = 0;
+                    let offsetY = 0;
 
-                } catch (error) {
-                    console.error('Detection error:', error);
+                    if (videoAspectRatio > canvasAspectRatio) {
+                        drawHeight = canvas.width / videoAspectRatio;
+                        offsetY = (canvas.height - drawHeight) / 2;
+                    } else {
+                        drawWidth = canvas.height * videoAspectRatio;
+                        offsetX = (canvas.width - drawWidth) / 2;
+                    }
+
+                    // Draw scaled frame with error handling
+                    try {
+                        ctx.drawImage(
+                            videoRef,
+                            offsetX, offsetY,
+                            drawWidth, drawHeight
+                        );
+                    } catch (err) {
+                        console.warn('Error drawing video frame:', err);
+                        requestAnimationFrame(detectObjects);
+                        return;
+                    }
+
+                    // Run detection on scaled frame with timeout
+                    const startTime = performance.now();
+                    let predictions;
+                    try {
+                        predictions = await Promise.race([
+                            modelRef.current.detect(canvas),
+                            new Promise((_, reject) => 
+                                setTimeout(() => reject(new Error('Detection timeout')), 1000)
+                            )
+                        ]);
+                    } catch (err) {
+                        console.warn('Detection error or timeout:', err);
+                        requestAnimationFrame(detectObjects);
+                        return;
+                    }
+                    const inferenceTime = performance.now() - startTime;
+
+                    // Update FPS counter
+                    frameCountRef.current++;
+                    if (now - lastFpsUpdateRef.current >= 1000) {
+                        fpsRef.current = frameCountRef.current;
+                        frameCountRef.current = 0;
+                        lastFpsUpdateRef.current = now;
+                    }
+
+                    if (!predictions || !Array.isArray(predictions)) {
+                        requestAnimationFrame(detectObjects);
+                        return;
+                    }
+
+                    // Filter predictions with confidence threshold and bounds checking
+                    const liveDetections = predictions
+                        .filter(pred => {
+                            if (!pred || !pred.bbox || pred.bbox.length !== 4) return false;
+                            if (pred.score < 0.5) return false;
+                            
+                            // Check if bbox is within reasonable bounds
+                            const [x, y, width, height] = pred.bbox;
+                            return x >= 0 && y >= 0 && width > 0 && height > 0 &&
+                                   x + width <= videoRef.videoWidth &&
+                                   y + height <= videoRef.videoHeight;
+                        })
+                        .map(pred => {
+                            // Scale predictions back to original video size
+                            const scaleX = videoRef.videoWidth / canvas.width;
+                            const scaleY = videoRef.videoHeight / canvas.height;
+                            return {
+                                ...pred,
+                                bbox: [
+                                    pred.bbox[0] * scaleX,
+                                    pred.bbox[1] * scaleY,
+                                    pred.bbox[2] * scaleX,
+                                    pred.bbox[3] * scaleY
+                                ]
+                            };
+                        });
+
+                    // Update state with only live detections
+                    setDetections(liveDetections);
+
+                    // Draw overlays for live detections only
+                    drawOverlays(liveDetections);
+
+                    // Log performance metrics
+                    if (inferenceTime > frameInterval) {
+                        console.warn(`Frame dropped: Inference took ${inferenceTime.toFixed(2)}ms`);
+                    }
+
+                } catch (err) {
+                    console.error('Detection error:', err);
+                } finally {
+                    isDetectingRef.current = false;
+                    requestAnimationFrame(detectObjects);
                 }
-            }, [drawOverlays, trackObjects]);
+            }, [videoRef, isTransitioning, drawOverlays]);
 
             // Initialize detection loop with performance monitoring and cleanup
             React.useEffect(() => {
@@ -1228,34 +1119,37 @@
                 }
             }, [isFrontCamera, isTransitioning, videoRef]);
 
-            // Fix camera initialization
-            const initializeCamera = React.useCallback(async () => {
+            // Initialize webcam with proper error handling
+            const initWebcam = React.useCallback(async () => {
                 try {
-                    const constraints = {
-                        video: {
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 },
-                            facingMode: isFrontCamera ? 'user' : 'environment'
-                        }
-                    };
+                    setLoadingStep('Initializing camera...');
+                    setLoadingProgress(20);
 
-                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                    const video = videoRef.current;
-                    
-                    if (video) {
-                        video.srcObject = stream;
-                        await video.play();
-                        
-                        // Ensure video is visible
-                        video.style.display = 'block';
-                        video.style.width = '100%';
-                        video.style.height = '100%';
-                        video.style.objectFit = 'cover';
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { 
+                            facingMode: 'user',
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        }
+                    });
+
+                    if (videoRef) {
+                        videoRef.srcObject = stream;
+                        await new Promise((resolve) => {
+                            videoRef.onloadedmetadata = () => {
+                                videoRef.play().then(resolve);
+                            };
+                        });
+                        setLoadingProgress(40);
+                        setLoadingStep('Camera initialized successfully!');
                     }
-                } catch (error) {
-                    console.error('Camera initialization error:', error);
+
+                } catch (err) {
+                    console.error('Webcam initialization error:', err);
+                    setLoadingStep('Failed to access camera. Please check permissions.');
+                    throw err;
                 }
-            }, [isFrontCamera]);
+            }, [videoRef]);
 
             if (error) {
                 return React.createElement('div', { className: 'fixed inset-0 flex items-center justify-center bg-black bg-opacity-50' },
