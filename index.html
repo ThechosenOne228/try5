@@ -515,96 +515,163 @@
                 );
             };
 
-            // Mock product metadata with more details
-            const mockProductData = {
-                'person': {
-                    title: 'Person',
-                    description: 'Human detected',
-                    color: '#FF0000',
-                    brand: 'Human'
-                },
-                'car': {
-                    title: 'Vehicle',
-                    description: 'Automobile detected',
-                    color: '#0000FF',
-                    brand: 'Vehicle'
-                },
-                'shoe': {
-                    title: 'Nike Air Max 90',
-                    description: 'Classic sneaker with Air cushioning',
-                    price: '$129.99',
-                    color: '#00FF00',
-                    brand: 'Nike'
-                },
-                'cell phone': {
-                    title: 'iPhone 14 Pro',
-                    description: 'Latest smartphone with A16 chip',
-                    price: '$999.99',
-                    color: '#FF00FF',
-                    brand: 'Apple'
-                },
-                'laptop': {
-                    title: 'MacBook Pro',
-                    description: 'Professional laptop with M2 chip',
-                    price: '$1999.99',
-                    color: '#FFFF00',
-                    brand: 'Apple'
-                }
-            };
-
-            // Object expiry settings
-            const OBJECT_EXPIRY_FRAMES = 30; // ~1 second at 30fps
-            const objectLastSeenRef = React.useRef(new Map());
-
-            // Track objects with expiry
-            const trackObjects = React.useCallback((predictions) => {
+            // Track objects across frames
+            const trackObjects = (newDetections) => {
                 const currentTracks = new Map(objectTracksRef.current);
-                const currentTime = Date.now();
+                const matchedTracks = new Set();
+                const unmatchedDetections = [];
 
-                // Update last seen time for all current detections
-                predictions.forEach(pred => {
-                    const key = `${pred.class}-${pred.bbox.join(',')}`;
-                    objectLastSeenRef.current.set(key, currentTime);
+                // Match new detections with existing tracks
+                newDetections.forEach((detection, detectionIndex) => {
+                    let bestMatch = null;
+                    let bestIoU = 0.3; // Minimum IoU threshold
+
+                    currentTracks.forEach((track, trackId) => {
+                        const iou = calculateIoU(detection.bbox, track.lastBbox);
+                        if (iou > bestIoU) {
+                            bestIoU = iou;
+                            bestMatch = trackId;
+                        }
+                    });
+
+                    if (bestMatch) {
+                        // Update existing track
+                        const track = currentTracks.get(bestMatch);
+                        const smoothedBbox = smoothBoundingBox(detection.bbox, track.lastBbox);
+                        currentTracks.set(bestMatch, {
+                            ...track,
+                            lastBbox: smoothedBbox,
+                            confidence: detection.score,
+                            class: detection.class,
+                            age: track.age + 1,
+                            lastSeen: frameCountRef.current
+                        });
+                        matchedTracks.add(bestMatch);
+                    } else {
+                        unmatchedDetections.push(detectionIndex);
+                    }
                 });
 
-                // Remove expired objects
-                for (const [key, lastSeen] of objectLastSeenRef.current) {
-                    if (currentTime - lastSeen > OBJECT_EXPIRY_FRAMES * (1000 / 30)) {
-                        objectLastSeenRef.current.delete(key);
-                        currentTracks.delete(key);
+                // Remove old tracks
+                currentTracks.forEach((track, trackId) => {
+                    if (!matchedTracks.has(trackId) && 
+                        frameCountRef.current - track.lastSeen > 30) { // Remove after 30 frames
+                        currentTracks.delete(trackId);
                     }
-                }
+                });
 
-                // Update tracks with new predictions
-                predictions.forEach(pred => {
-                    const key = `${pred.class}-${pred.bbox.join(',')}`;
-                    const existingTrack = currentTracks.get(key);
-                    
-                    if (existingTrack) {
-                        // Update existing track
-                        currentTracks.set(key, {
-                            ...existingTrack,
-                            lastBbox: pred.bbox,
-                            confidence: pred.score,
-                            age: existingTrack.age + 1
-                        });
-                    } else {
-                        // Create new track
-                        currentTracks.set(key, {
-                            id: key,
-                            class: pred.class,
-                            lastBbox: pred.bbox,
-                            confidence: pred.score,
-                            age: 0
-                        });
-                    }
+                // Create new tracks for unmatched detections
+                unmatchedDetections.forEach(detectionIndex => {
+                    const detection = newDetections[detectionIndex];
+                    const trackId = `track_${Date.now()}_${detectionIndex}`;
+                    currentTracks.set(trackId, {
+                        id: trackId,
+                        lastBbox: detection.bbox,
+                        confidence: detection.score,
+                        class: detection.class,
+                        age: 1,
+                        lastSeen: frameCountRef.current
+                    });
                 });
 
                 objectTracksRef.current = currentTracks;
                 return Array.from(currentTracks.values());
+            };
+
+            // Mock product metadata
+            const mockProductData = {
+                'person': {
+                    title: 'Person',
+                    description: 'Human detected',
+                    color: '#FF0000'
+                },
+                'car': {
+                    title: 'Vehicle',
+                    description: 'Automobile detected',
+                    color: '#0000FF'
+                },
+                'shoe': {
+                    title: 'Nike Air Max 90',
+                    description: 'Classic sneaker',
+                    price: '$129.99',
+                    color: '#00FF00'
+                },
+                'cell phone': {
+                    title: 'iPhone 14 Pro',
+                    description: 'Latest smartphone',
+                    price: '$999.99',
+                    color: '#FF00FF'
+                },
+                'laptop': {
+                    title: 'MacBook Pro',
+                    description: 'Professional laptop',
+                    price: '$1999.99',
+                    color: '#FFFF00'
+                }
+            };
+
+            // Draw detection overlays
+            const drawOverlays = React.useCallback((detections) => {
+                if (!overlayContextRef.current || !detections) return;
+
+                const ctx = overlayContextRef.current;
+                const canvas = overlayCanvasRef.current;
+                
+                // Ensure canvas dimensions match window
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                
+                // Clear previous frame
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                detections.forEach(detection => {
+                    if (!detection.lastBbox || detection.lastBbox.length !== 4) return;
+                    
+                    const [x, y, width, height] = detection.lastBbox;
+                    const metadata = mockProductData[detection.class] || {
+                        title: detection.class,
+                        description: 'Object detected',
+                        color: '#FFFFFF'
+                    };
+
+                    // Ensure coordinates are within canvas bounds
+                    const safeX = Math.max(0, Math.min(x, canvas.width));
+                    const safeY = Math.max(0, Math.min(y, canvas.height));
+                    const safeWidth = Math.min(width, canvas.width - safeX);
+                    const safeHeight = Math.min(height, canvas.height - safeY);
+
+                    // Draw bounding box
+                    ctx.strokeStyle = metadata.color;
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(safeX, safeY, safeWidth, safeHeight);
+
+                    // Calculate label position
+                    const labelY = Math.max(0, safeY - 60);
+                    const labelText = `${metadata.title} (${Math.round(detection.confidence * 100)}%)`;
+                    ctx.font = '14px Arial';
+                    const textMetrics = ctx.measureText(labelText);
+                    const labelWidth = textMetrics.width + 20;
+                    const labelHeight = 60;
+
+                    // Ensure label stays within canvas bounds
+                    const labelX = Math.min(safeX, canvas.width - labelWidth);
+
+                    // Draw label background
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
+
+                    // Draw label text
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillText(labelText, labelX + 10, labelY + 20);
+                    
+                    if (metadata.price) {
+                        ctx.fillText(metadata.price, labelX + 10, labelY + 40);
+                    }
+                    ctx.fillText(metadata.description, labelX + 10, labelY + 60);
+                });
             }, []);
 
-            // Optimized detection loop with frame-by-frame rendering
+            // Optimized detection loop
             const detectObjects = React.useCallback(async () => {
                 if (!modelRef.current || !videoRef || !detectionContextRef.current || isTransitioning || isDetectingRef.current) {
                     requestAnimationFrame(detectObjects);
@@ -658,9 +725,12 @@
                         return;
                     }
 
-                    // Filter predictions with high confidence
-                    const liveDetections = predictions
-                        .filter(pred => pred.score >= 0.5 && pred.bbox && pred.bbox.length === 4)
+                    // Filter and process predictions
+                    const filteredPredictions = predictions
+                        .filter(pred => {
+                            const minConfidence = TARGET_CLASSES[pred.class] || 0.5;
+                            return pred.score >= minConfidence && pred.bbox && pred.bbox.length === 4;
+                        })
                         .map(pred => {
                             // Scale predictions back to original video size
                             const scaleX = videoRef.videoWidth / canvas.width;
@@ -676,11 +746,13 @@
                             };
                         });
 
-                    // Update state with only live detections
-                    setDetections(liveDetections);
+                    // Track objects and update state
+                    const trackedObjects = trackObjects(filteredPredictions);
+                    setDetections(trackedObjects);
+                    previousDetectionsRef.current = trackedObjects;
 
-                    // Draw overlays for live detections only
-                    drawOverlays(liveDetections);
+                    // Draw overlays
+                    drawOverlays(trackedObjects);
 
                 } catch (err) {
                     console.error('Detection error:', err);
@@ -690,84 +762,50 @@
                 }
             }, [videoRef, isTransitioning, drawOverlays]);
 
-            // Draw detection overlays with optimized rendering
-            const drawOverlays = React.useCallback((detections) => {
-                if (!overlayContextRef.current || !detections) return;
-
-                const ctx = overlayContextRef.current;
-                const canvas = overlayCanvasRef.current;
-                
-                // Ensure canvas dimensions match window
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                
-                // Clear previous frame completely
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                // Draw only live detections
-                detections.forEach(detection => {
-                    if (!detection.bbox || detection.bbox.length !== 4) return;
-                    
-                    const [x, y, width, height] = detection.bbox;
-                    const metadata = mockProductData[detection.class] || {
-                        title: detection.class,
-                        description: 'Object detected',
-                        color: '#FFFFFF',
-                        brand: detection.class
-                    };
-
-                    // Ensure coordinates are within canvas bounds
-                    const safeX = Math.max(0, Math.min(x, canvas.width));
-                    const safeY = Math.max(0, Math.min(y, canvas.height));
-                    const safeWidth = Math.min(width, canvas.width - safeX);
-                    const safeHeight = Math.min(height, canvas.height - safeY);
-
-                    // Draw bounding box
-                    ctx.strokeStyle = metadata.color;
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(safeX, safeY, safeWidth, safeHeight);
-
-                    // Calculate label position (prefer top-left, fallback to bottom)
-                    const labelText = [
-                        `${metadata.brand}`,
-                        `${metadata.title}`,
-                        metadata.price ? `${metadata.price}` : '',
-                        `${metadata.description}`
-                    ].filter(Boolean);
-
-                    ctx.font = '14px Arial';
-                    const textMetrics = ctx.measureText(labelText[0]);
-                    const labelWidth = Math.max(...labelText.map(text => ctx.measureText(text).width)) + 20;
-                    const labelHeight = labelText.length * 20 + 10;
-
-                    // Determine if label should go on top or bottom
-                    const hasSpaceOnTop = safeY > labelHeight;
-                    const labelY = hasSpaceOnTop ? safeY - labelHeight : safeY + safeHeight;
-                    const labelX = Math.min(safeX, canvas.width - labelWidth);
-
-                    // Draw label background
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                    ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
-
-                    // Draw label text
-                    ctx.fillStyle = '#FFFFFF';
-                    labelText.forEach((text, index) => {
-                        ctx.fillText(text, labelX + 10, labelY + 20 + (index * 20));
-                    });
-                });
-            }, []);
-
-            // Initialize detection loop
+            // Initialize canvases
             React.useEffect(() => {
                 let animationFrameId;
 
+                // Detection canvas
+                const detectionCanvas = document.createElement('canvas');
+                detectionCanvas.width = 640;
+                detectionCanvas.height = 480;
+                detectionCanvasRef.current = detectionCanvas;
+                detectionContextRef.current = detectionCanvas.getContext('2d');
+
+                // Overlay canvas
+                const overlayCanvas = document.createElement('canvas');
+                overlayCanvas.width = window.innerWidth;
+                overlayCanvas.height = window.innerHeight;
+                overlayCanvas.style.position = 'absolute';
+                overlayCanvas.style.top = '0';
+                overlayCanvas.style.left = '0';
+                overlayCanvas.style.pointerEvents = 'none';
+                overlayCanvas.style.zIndex = '1000';
+                document.body.appendChild(overlayCanvas);
+                overlayCanvasRef.current = overlayCanvas;
+                overlayContextRef.current = overlayCanvas.getContext('2d');
+
+                // Handle window resize
+                const handleResize = () => {
+                    if (overlayCanvasRef.current) {
+                        overlayCanvasRef.current.width = window.innerWidth;
+                        overlayCanvasRef.current.height = window.innerHeight;
+                    }
+                };
+                window.addEventListener('resize', handleResize);
+
+                // Start detection loop
                 const startDetection = () => {
                     animationFrameId = requestAnimationFrame(detectObjects);
                 };
-
                 startDetection();
 
                 return () => {
+                    window.removeEventListener('resize', handleResize);
+                    if (overlayCanvasRef.current) {
+                        document.body.removeChild(overlayCanvasRef.current);
+                    }
                     if (animationFrameId) {
                         cancelAnimationFrame(animationFrameId);
                     }
@@ -873,101 +911,33 @@
                 }
             };
 
-            // Fix camera switching
-            const handleCameraSwitch = React.useCallback(async () => {
-                if (isTransitioning) return;
-
+            // Handle camera switch
+            const handleCameraSwitch = async () => {
                 try {
                     setIsTransitioning(true);
-                    setLoadingStep('Switching camera...');
-                    setLoadingProgress(50);
-
-                    // Stop all tracks and clear video source
-                    if (videoRef.srcObject) {
-                        videoRef.srcObject.getTracks().forEach(track => {
-                            track.stop();
-                        });
-                        videoRef.srcObject = null;
-                    }
-
-                    // Clear detection state
-                    setDetections([]);
-                    if (overlayContextRef.current) {
-                        overlayContextRef.current.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
-                    }
-
-                    // Switch camera
+                    const transitionElement = document.getElementById('camera-transition');
+                    transitionElement.classList.add('active');
+                    
+                    // Wait for transition
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
                     const newFacingMode = isFrontCamera ? 'environment' : 'user';
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { 
-                            facingMode: newFacingMode,
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
-                        }
-                    });
-
-                    // Update video source and wait for it to be ready
-                    videoRef.srcObject = stream;
-                    await new Promise((resolve) => {
-                        videoRef.onloadedmetadata = () => {
-                            videoRef.play().then(resolve);
-                        };
-                    });
-
-                    // Update state
+                    const newVideoRef = await initWebcam(newFacingMode);
+                    setVideoRef(newVideoRef);
                     setIsFrontCamera(!isFrontCamera);
-                    setLoadingProgress(100);
-                    setLoadingStep('Camera switched successfully!');
-
-                    // Reset loading state after a short delay
-                    setTimeout(() => {
-                        setIsTransitioning(false);
-                        setLoadingStep('');
-                        setLoadingProgress(0);
-                    }, 1000);
-
+                    
+                    // Wait for video to be ready
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    transitionElement.classList.remove('active');
+                    setIsTransitioning(false);
                 } catch (err) {
-                    console.error('Camera switch error:', err);
-                    setLoadingStep('Failed to switch camera. Please try again.');
-                    setTimeout(() => {
-                        setIsTransitioning(false);
-                        setLoadingStep('');
-                        setLoadingProgress(0);
-                    }, 2000);
+                    const errorMsg = 'Failed to switch camera: ' + err.message;
+                    debugLog(errorMsg);
+                    setError(errorMsg);
+                    setIsTransitioning(false);
                 }
-            }, [isFrontCamera, isTransitioning, videoRef]);
-
-            // Initialize webcam with proper error handling
-            const initWebcam = React.useCallback(async () => {
-                try {
-                    setLoadingStep('Initializing camera...');
-                    setLoadingProgress(20);
-
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { 
-                            facingMode: 'user',
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
-                        }
-                    });
-
-                    if (videoRef) {
-                        videoRef.srcObject = stream;
-                        await new Promise((resolve) => {
-                            videoRef.onloadedmetadata = () => {
-                                videoRef.play().then(resolve);
-                            };
-                        });
-                        setLoadingProgress(40);
-                        setLoadingStep('Camera initialized successfully!');
-                    }
-
-                } catch (err) {
-                    console.error('Webcam initialization error:', err);
-                    setLoadingStep('Failed to access camera. Please check permissions.');
-                    throw err;
-                }
-            }, [videoRef]);
+            };
 
             if (error) {
                 return React.createElement('div', { className: 'fixed inset-0 flex items-center justify-center bg-black bg-opacity-50' },
