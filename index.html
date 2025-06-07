@@ -482,6 +482,26 @@
             const overlayCanvasRef = React.useRef(null);
             const overlayContextRef = React.useRef(null);
 
+            // Constants for model and canvas dimensions
+            const MODEL_WIDTH = 640;
+            const MODEL_HEIGHT = 640;
+
+            // Scale bounding box coordinates from model to canvas
+            const scaleBoundingBox = React.useCallback((box, canvasWidth, canvasHeight) => {
+                const [xMin, yMin, xMax, yMax] = box;
+
+                // Scale coordinates to canvas size
+                const scaleX = canvasWidth / MODEL_WIDTH;
+                const scaleY = canvasHeight / MODEL_HEIGHT;
+
+                const x = xMin * scaleX;
+                const y = yMin * scaleY;
+                const width = (xMax - xMin) * scaleX;
+                const height = (yMax - yMin) * scaleY;
+
+                return [x, y, width, height];
+            }, []);
+
             // Target object classes with their minimum confidence thresholds
             const TARGET_CLASSES = {
                 'person': 0.6,
@@ -494,33 +514,6 @@
             // Performance settings
             const targetFps = 15;
             const frameInterval = 1000 / targetFps;
-
-            // Calculate IoU (Intersection over Union) between two bounding boxes
-            const calculateIoU = (box1, box2) => {
-                const [x1, y1, w1, h1] = box1;
-                const [x2, y2, w2, h2] = box2;
-                
-                const intersectionX = Math.max(x1, x2);
-                const intersectionY = Math.max(y1, y2);
-                const intersectionWidth = Math.min(x1 + w1, x2 + w2) - intersectionX;
-                const intersectionHeight = Math.min(y1 + h1, y2 + h2) - intersectionY;
-                
-                if (intersectionWidth <= 0 || intersectionHeight <= 0) return 0;
-                
-                const intersectionArea = intersectionWidth * intersectionHeight;
-                const box1Area = w1 * h1;
-                const box2Area = w2 * h2;
-                
-                return intersectionArea / (box1Area + box2Area - intersectionArea);
-            };
-
-            // Smooth bounding box coordinates
-            const smoothBoundingBox = (current, previous, alpha = 0.3) => {
-                if (!previous) return current;
-                return current.map((coord, i) => 
-                    previous[i] + alpha * (coord - previous[i])
-                );
-            };
 
             // Object tracking system
             const [trackedObjects, setTrackedObjects] = React.useState(new Map());
@@ -963,7 +956,7 @@
                 return bestMatch;
             }, []);
 
-            // Draw detection overlays with enhanced styling and precise tracking
+            // Draw detection overlays with precise scaling and visibility
             const drawOverlays = React.useCallback((detections) => {
                 if (!overlayContextRef.current || !detections) return;
 
@@ -973,20 +966,26 @@
                 
                 if (!canvas || !video) return;
                 
-                // Ensure canvas dimensions match video
+                // Set canvas dimensions to match video
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 
-                // Clear previous frame completely
+                // Clear canvas completely
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Set default styles
+                ctx.font = 'bold 16px Arial';
+                ctx.textBaseline = 'top';
 
                 // Draw tracked detections with enhanced styling
                 detections.forEach(detection => {
                     if (!detection.bbox || detection.bbox.length !== 4) return;
                     
-                    // Use raw model coordinates scaled to video dimensions
-                    const [x, y, width, height] = detection.bbox.map(coord => 
-                        Math.round(coord * (canvas.width / 640)) // Scale from model's 640x640 to video dimensions
+                    // Scale coordinates to canvas size
+                    const [x, y, width, height] = scaleBoundingBox(
+                        detection.bbox,
+                        canvas.width,
+                        canvas.height
                     );
 
                     const metadata = mockProductData[detection.class] || {
@@ -995,9 +994,9 @@
                         color: '#FFFFFF',
                         brand: detection.class,
                         style: {
-                            lineWidth: 3, // Increased line width
+                            lineWidth: 3,
                             lineDash: [],
-                            labelBg: 'rgba(0, 0, 0, 0.8)' // Darker background for better contrast
+                            labelBg: 'rgba(0, 0, 0, 0.8)'
                         }
                     };
 
@@ -1044,7 +1043,6 @@
                     ].filter(Boolean);
 
                     // Calculate label dimensions
-                    ctx.font = 'bold 14px Arial'; // Made font bold
                     const textMetrics = ctx.measureText(labelText[0]);
                     const labelWidth = Math.max(...labelText.map(text => ctx.measureText(text).width)) + 20;
                     const labelHeight = labelText.length * 20 + 10;
@@ -1082,9 +1080,9 @@
                     ctx.shadowColor = 'transparent';
                     ctx.setLineDash([]);
                 });
-            }, [detectColor, matchProduct]);
+            }, [detectColor, matchProduct, scaleBoundingBox]);
 
-            // Update detection loop for precise tracking
+            // Update detection loop with proper async handling
             const detectObjects = React.useCallback(async () => {
                 if (!videoRef.current || !detectionCanvasRef.current || !modelRef.current) return;
 
@@ -1102,7 +1100,7 @@
                     // Draw video frame
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-                    // Run detection
+                    // Run detection and await result
                     const predictions = await modelRef.current.detect(canvas);
                     
                     // Filter predictions with strict bounds checking
@@ -1114,8 +1112,8 @@
                         pred.bbox[1] >= 0 && 
                         pred.bbox[2] > 0 && 
                         pred.bbox[3] > 0 &&
-                        pred.bbox[0] + pred.bbox[2] <= canvas.width &&
-                        pred.bbox[1] + pred.bbox[3] <= canvas.height
+                        pred.bbox[0] + pred.bbox[2] <= MODEL_WIDTH &&
+                        pred.bbox[1] + pred.bbox[3] <= MODEL_HEIGHT
                     );
 
                     // Track objects with precise coordinates
