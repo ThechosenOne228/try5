@@ -677,7 +677,131 @@
                 return Array.from(currentTracks.values());
             }, []);
 
-            // Draw detection overlays with enhanced styling
+            // Performance monitoring
+            const fpsRef = React.useRef(0);
+            const lastFrameTimeRef = React.useRef(0);
+            const frameCountRef = React.useRef(0);
+            const lastFpsUpdateRef = React.useRef(0);
+            const targetFps = 15;
+            const frameInterval = 1000 / targetFps;
+
+            // Optimized detection loop with FPS control
+            const detectObjects = React.useCallback(async () => {
+                const now = performance.now();
+                const elapsed = now - lastFrameTimeRef.current;
+
+                // Skip frame if we're running too fast
+                if (elapsed < frameInterval) {
+                    requestAnimationFrame(detectObjects);
+                    return;
+                }
+
+                if (!modelRef.current || !videoRef || !detectionContextRef.current || isTransitioning || isDetectingRef.current) {
+                    requestAnimationFrame(detectObjects);
+                    return;
+                }
+
+                try {
+                    isDetectingRef.current = true;
+                    lastFrameTimeRef.current = now;
+
+                    // Scale down video frame for detection
+                    const ctx = detectionContextRef.current;
+                    const canvas = detectionCanvasRef.current;
+                    
+                    if (!ctx || !canvas || !videoRef.videoWidth || !videoRef.videoHeight) {
+                        requestAnimationFrame(detectObjects);
+                        return;
+                    }
+                    
+                    // Clear previous frame
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Calculate aspect ratio to maintain video proportions
+                    const videoAspectRatio = videoRef.videoWidth / videoRef.videoHeight;
+                    const canvasAspectRatio = canvas.width / canvas.height;
+                    
+                    let drawWidth = canvas.width;
+                    let drawHeight = canvas.height;
+                    let offsetX = 0;
+                    let offsetY = 0;
+
+                    if (videoAspectRatio > canvasAspectRatio) {
+                        drawHeight = canvas.width / videoAspectRatio;
+                        offsetY = (canvas.height - drawHeight) / 2;
+                    } else {
+                        drawWidth = canvas.height * videoAspectRatio;
+                        offsetX = (canvas.width - drawWidth) / 2;
+                    }
+
+                    // Draw scaled frame
+                    ctx.drawImage(
+                        videoRef,
+                        offsetX, offsetY,
+                        drawWidth, drawHeight
+                    );
+
+                    // Run detection on scaled frame with lower confidence threshold for small objects
+                    const startTime = performance.now();
+                    const predictions = await modelRef.current.detect(canvas);
+                    const inferenceTime = performance.now() - startTime;
+
+                    // Update FPS counter
+                    frameCountRef.current++;
+                    if (now - lastFpsUpdateRef.current >= 1000) {
+                        fpsRef.current = frameCountRef.current;
+                        frameCountRef.current = 0;
+                        lastFpsUpdateRef.current = now;
+                    }
+
+                    if (!predictions || !Array.isArray(predictions)) {
+                        requestAnimationFrame(detectObjects);
+                        return;
+                    }
+
+                    // Filter predictions with adjusted confidence thresholds
+                    const liveDetections = predictions
+                        .filter(pred => {
+                            // Lower threshold for small objects
+                            const isSmallObject = ['glasses', 'watch', 'cell phone'].includes(pred.class);
+                            const minConfidence = isSmallObject ? 0.3 : 0.5;
+                            return pred.score >= minConfidence && pred.bbox && pred.bbox.length === 4;
+                        })
+                        .map(pred => {
+                            // Scale predictions back to original video size
+                            const scaleX = videoRef.videoWidth / canvas.width;
+                            const scaleY = videoRef.videoHeight / canvas.height;
+                            return {
+                                ...pred,
+                                bbox: [
+                                    pred.bbox[0] * scaleX,
+                                    pred.bbox[1] * scaleY,
+                                    pred.bbox[2] * scaleX,
+                                    pred.bbox[3] * scaleY
+                                ]
+                            };
+                        });
+
+                    // Update state with only live detections
+                    setDetections(liveDetections);
+
+                    // Draw overlays for live detections only
+                    drawOverlays(liveDetections);
+
+                    // Log performance metrics
+                    if (inferenceTime > frameInterval) {
+                        console.warn(`Frame dropped: Inference took ${inferenceTime.toFixed(2)}ms`);
+                    }
+
+                } catch (err) {
+                    console.error('Detection error:', err);
+                } finally {
+                    isDetectingRef.current = false;
+                    requestAnimationFrame(detectObjects);
+                }
+            }, [videoRef, isTransitioning, drawOverlays]);
+
+            // Draw detection overlays with optimized rendering
             const drawOverlays = React.useCallback((detections) => {
                 if (!overlayContextRef.current || !detections) return;
 
@@ -757,103 +881,21 @@
                 });
             }, []);
 
-            // Optimized detection loop with support for smaller objects
-            const detectObjects = React.useCallback(async () => {
-                if (!modelRef.current || !videoRef || !detectionContextRef.current || isTransitioning || isDetectingRef.current) {
-                    requestAnimationFrame(detectObjects);
-                    return;
-                }
-
-                try {
-                    isDetectingRef.current = true;
-
-                    // Scale down video frame for detection
-                    const ctx = detectionContextRef.current;
-                    const canvas = detectionCanvasRef.current;
-                    
-                    if (!ctx || !canvas || !videoRef.videoWidth || !videoRef.videoHeight) {
-                        requestAnimationFrame(detectObjects);
-                        return;
-                    }
-                    
-                    // Clear previous frame
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    
-                    // Calculate aspect ratio to maintain video proportions
-                    const videoAspectRatio = videoRef.videoWidth / videoRef.videoHeight;
-                    const canvasAspectRatio = canvas.width / canvas.height;
-                    
-                    let drawWidth = canvas.width;
-                    let drawHeight = canvas.height;
-                    let offsetX = 0;
-                    let offsetY = 0;
-
-                    if (videoAspectRatio > canvasAspectRatio) {
-                        drawHeight = canvas.width / videoAspectRatio;
-                        offsetY = (canvas.height - drawHeight) / 2;
-                    } else {
-                        drawWidth = canvas.height * videoAspectRatio;
-                        offsetX = (canvas.width - drawWidth) / 2;
-                    }
-
-                    // Draw scaled frame
-                    ctx.drawImage(
-                        videoRef,
-                        offsetX, offsetY,
-                        drawWidth, drawHeight
-                    );
-
-                    // Run detection on scaled frame with lower confidence threshold for small objects
-                    const predictions = await modelRef.current.detect(canvas);
-
-                    if (!predictions || !Array.isArray(predictions)) {
-                        requestAnimationFrame(detectObjects);
-                        return;
-                    }
-
-                    // Filter predictions with adjusted confidence thresholds
-                    const liveDetections = predictions
-                        .filter(pred => {
-                            // Lower threshold for small objects
-                            const isSmallObject = ['glasses', 'watch', 'cell phone'].includes(pred.class);
-                            const minConfidence = isSmallObject ? 0.3 : 0.5;
-                            return pred.score >= minConfidence && pred.bbox && pred.bbox.length === 4;
-                        })
-                        .map(pred => {
-                            // Scale predictions back to original video size
-                            const scaleX = videoRef.videoWidth / canvas.width;
-                            const scaleY = videoRef.videoHeight / canvas.height;
-                            return {
-                                ...pred,
-                                bbox: [
-                                    pred.bbox[0] * scaleX,
-                                    pred.bbox[1] * scaleY,
-                                    pred.bbox[2] * scaleX,
-                                    pred.bbox[3] * scaleY
-                                ]
-                            };
-                        });
-
-                    // Update state with only live detections
-                    setDetections(liveDetections);
-
-                    // Draw overlays for live detections only
-                    drawOverlays(liveDetections);
-
-                } catch (err) {
-                    console.error('Detection error:', err);
-                } finally {
-                    isDetectingRef.current = false;
-                    requestAnimationFrame(detectObjects);
-                }
-            }, [videoRef, isTransitioning, drawOverlays]);
-
-            // Initialize detection loop
+            // Initialize detection loop with performance monitoring
             React.useEffect(() => {
                 let animationFrameId;
+                let lastTime = performance.now();
 
                 const startDetection = () => {
-                    animationFrameId = requestAnimationFrame(detectObjects);
+                    const now = performance.now();
+                    const elapsed = now - lastTime;
+
+                    if (elapsed >= frameInterval) {
+                        lastTime = now;
+                        animationFrameId = requestAnimationFrame(detectObjects);
+                    } else {
+                        animationFrameId = requestAnimationFrame(startDetection);
+                    }
                 };
 
                 startDetection();
@@ -865,21 +907,14 @@
                 };
             }, [detectObjects]);
 
-            // FPS counter
+            // Update FPS display
             React.useEffect(() => {
-                const updateFPS = () => {
-                    const now = performance.now();
-                    const elapsed = now - lastTimeRef.current;
-                    frameCountRef.current++;
-
-                    if (elapsed >= 1000) {
-                        setFps(Math.round((frameCountRef.current * 1000) / elapsed));
-                        frameCountRef.current = 0;
-                        lastTimeRef.current = now;
-                    }
-                    requestAnimationFrame(updateFPS);
+                const updateFps = () => {
+                    setFps(fpsRef.current);
                 };
-                requestAnimationFrame(updateFPS);
+
+                const fpsInterval = setInterval(updateFps, 1000);
+                return () => clearInterval(fpsInterval);
             }, []);
 
             // Update loading step
