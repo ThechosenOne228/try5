@@ -584,7 +584,7 @@
                 }
             }, []);
 
-            // Enhanced mock product metadata with clothing attributes
+            // Enhanced mock product metadata with more clothing categories and attributes
             const mockProductData = {
                 'person': {
                     title: 'Person',
@@ -602,10 +602,47 @@
                     description: 'Upper garment',
                     color: '#FF00FF',
                     brand: 'Clothing',
+                    attributes: {
+                        sleeveLength: ['short sleeve', 'long sleeve', 'sleeveless'],
+                        pattern: ['plain', 'striped', 'printed', 'checkered'],
+                        style: ['casual', 'formal', 'sport']
+                    },
                     style: {
                         lineWidth: 2,
                         lineDash: [],
                         labelBg: 'rgba(255, 0, 255, 0.7)'
+                    }
+                },
+                't-shirt': {
+                    title: 'T-Shirt',
+                    description: 'Casual top',
+                    color: '#FF00FF',
+                    brand: 'Clothing',
+                    attributes: {
+                        sleeveLength: ['short sleeve', 'sleeveless'],
+                        pattern: ['plain', 'graphic', 'printed'],
+                        style: ['casual', 'sport']
+                    },
+                    style: {
+                        lineWidth: 2,
+                        lineDash: [],
+                        labelBg: 'rgba(255, 0, 255, 0.7)'
+                    }
+                },
+                'dress': {
+                    title: 'Dress',
+                    description: 'One-piece garment',
+                    color: '#FF69B4',
+                    brand: 'Clothing',
+                    attributes: {
+                        length: ['mini', 'midi', 'maxi'],
+                        pattern: ['plain', 'floral', 'striped'],
+                        style: ['casual', 'formal', 'evening']
+                    },
+                    style: {
+                        lineWidth: 2,
+                        lineDash: [],
+                        labelBg: 'rgba(255, 105, 180, 0.7)'
                     }
                 },
                 'pants': {
@@ -613,6 +650,27 @@
                     description: 'Lower garment',
                     color: '#0000FF',
                     brand: 'Clothing',
+                    attributes: {
+                        length: ['full length', 'cropped', 'shorts'],
+                        fit: ['slim', 'regular', 'loose'],
+                        style: ['casual', 'formal', 'sport']
+                    },
+                    style: {
+                        lineWidth: 2,
+                        lineDash: [],
+                        labelBg: 'rgba(0, 0, 255, 0.7)'
+                    }
+                },
+                'jeans': {
+                    title: 'Jeans',
+                    description: 'Denim pants',
+                    color: '#0000FF',
+                    brand: 'Clothing',
+                    attributes: {
+                        fit: ['skinny', 'straight', 'bootcut'],
+                        wash: ['light', 'medium', 'dark'],
+                        style: ['casual']
+                    },
                     style: {
                         lineWidth: 2,
                         lineDash: [],
@@ -624,28 +682,55 @@
                     description: 'Shoe detected',
                     color: '#00FF00',
                     brand: 'Footwear',
+                    attributes: {
+                        type: ['sneakers', 'boots', 'sandals', 'formal'],
+                        style: ['casual', 'sport', 'formal']
+                    },
                     style: {
                         lineWidth: 2,
                         lineDash: [5, 5],
                         labelBg: 'rgba(0, 255, 0, 0.7)'
                     }
                 },
-                'backpack': {
-                    title: 'Backpack',
-                    description: 'Bag detected',
-                    color: '#800080',
-                    brand: 'Bag',
+                'sneakers': {
+                    title: 'Sneakers',
+                    description: 'Athletic shoes',
+                    color: '#00FF00',
+                    brand: 'Footwear',
+                    attributes: {
+                        type: ['running', 'lifestyle', 'basketball'],
+                        style: ['sport', 'casual']
+                    },
+                    style: {
+                        lineWidth: 2,
+                        lineDash: [5, 5],
+                        labelBg: 'rgba(0, 255, 0, 0.7)'
+                    }
+                },
+                'boots': {
+                    title: 'Boots',
+                    description: 'Footwear',
+                    color: '#8B4513',
+                    brand: 'Footwear',
+                    attributes: {
+                        type: ['ankle', 'knee-high', 'hiking'],
+                        style: ['casual', 'formal']
+                    },
                     style: {
                         lineWidth: 2,
                         lineDash: [],
-                        labelBg: 'rgba(128, 0, 128, 0.7)'
+                        labelBg: 'rgba(139, 69, 19, 0.7)'
                     }
                 },
                 'hat': {
                     title: 'Hat',
-                    description: 'Headwear detected',
+                    description: 'Headwear',
                     color: '#FFA500',
                     brand: 'Accessory',
+                    attributes: {
+                        type: ['cap', 'beanie', 'fedora'],
+                        style: ['casual', 'formal']
+                    },
                     style: {
                         lineWidth: 2,
                         lineDash: [3, 3],
@@ -654,9 +739,13 @@
                 },
                 'glasses': {
                     title: 'Eyewear',
-                    description: 'Glasses detected',
+                    description: 'Glasses',
                     color: '#00FFFF',
                     brand: 'Accessory',
+                    attributes: {
+                        type: ['sunglasses', 'prescription', 'reading'],
+                        style: ['casual', 'formal']
+                    },
                     style: {
                         lineWidth: 1,
                         lineDash: [2, 2],
@@ -665,20 +754,43 @@
                 },
                 'watch': {
                     title: 'Watch',
-                    description: 'Timepiece detected',
+                    description: 'Timepiece',
                     color: '#FFA500',
                     brand: 'Accessory',
+                    attributes: {
+                        type: ['analog', 'digital', 'smart'],
+                        style: ['casual', 'formal', 'sport']
+                    },
                     style: {
                         lineWidth: 1,
                         lineDash: [3, 3],
                         labelBg: 'rgba(255, 165, 0, 0.7)'
                     }
                 },
+                'backpack': {
+                    title: 'Backpack',
+                    description: 'Bag',
+                    color: '#800080',
+                    brand: 'Bag',
+                    attributes: {
+                        type: ['school', 'travel', 'hiking'],
+                        style: ['casual', 'sport']
+                    },
+                    style: {
+                        lineWidth: 2,
+                        lineDash: [],
+                        labelBg: 'rgba(128, 0, 128, 0.7)'
+                    }
+                },
                 'handbag': {
                     title: 'Bag',
-                    description: 'Handbag detected',
+                    description: 'Handbag',
                     color: '#A52A2A',
                     brand: 'Bag',
+                    attributes: {
+                        type: ['tote', 'clutch', 'shoulder'],
+                        style: ['casual', 'formal']
+                    },
                     style: {
                         lineWidth: 2,
                         lineDash: [4, 4],
@@ -776,7 +888,7 @@
                 return () => window.removeEventListener('resize', initCanvases);
             }, []);
 
-            // Draw detection overlays with enhanced styling and color detection
+            // Draw detection overlays with enhanced styling and attributes
             const drawOverlays = React.useCallback((detections) => {
                 if (!overlayContextRef.current || !detections) return;
 
@@ -811,7 +923,7 @@
 
                     // Detect color for clothing items
                     let detectedColor = 'unknown';
-                    if (['shirt', 'pants', 'shoe', 'hat', 'backpack', 'handbag'].includes(detection.class)) {
+                    if (['shirt', 't-shirt', 'dress', 'pants', 'jeans', 'shoe', 'sneakers', 'boots', 'hat', 'backpack', 'handbag'].includes(detection.class)) {
                         detectedColor = detectColor(ctx, x, y, width, height);
                     }
 
@@ -836,7 +948,7 @@
                         ctx.setLineDash([]);
                     }
                     
-                    // Draw box with rounded corners
+                    // Draw box with rounded corners and fill
                     const radius = 5;
                     ctx.beginPath();
                     ctx.moveTo(safeX + radius, safeY);
@@ -849,6 +961,12 @@
                     ctx.lineTo(safeX, safeY + radius);
                     ctx.quadraticCurveTo(safeX, safeY, safeX + radius, safeY);
                     ctx.closePath();
+                    
+                    // Fill box with semi-transparent color
+                    ctx.fillStyle = `${metadata.color}33`; // 20% opacity
+                    ctx.fill();
+                    
+                    // Draw border
                     ctx.stroke();
 
                     // Draw label with enhanced styling
@@ -856,6 +974,9 @@
                         `${metadata.brand}`,
                         `${metadata.title}`,
                         detectedColor !== 'unknown' ? `${detectedColor}` : '',
+                        metadata.attributes ? Object.entries(metadata.attributes)
+                            .map(([key, values]) => `${key}: ${values[0]}`)
+                            .join(', ') : '',
                         `${metadata.description}`
                     ].filter(Boolean);
 
