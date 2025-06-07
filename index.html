@@ -584,6 +584,7 @@
 
                 try {
                     isDetectingRef.current = true;
+                    console.log('Starting detection...');
 
                     // Scale down video frame for detection
                     const ctx = detectionContextRef.current;
@@ -614,12 +615,16 @@
                     );
 
                     // Run detection on scaled frame
+                    console.log('Running model detection...');
                     const predictions = await modelRef.current.detect(canvas);
+                    console.log('Raw predictions:', predictions);
 
                     // Filter and process predictions
                     const filteredPredictions = predictions
                         .filter(pred => {
                             const minConfidence = TARGET_CLASSES[pred.class] || 0.5;
+                            const isTargetClass = Object.keys(TARGET_CLASSES).includes(pred.class);
+                            console.log(`Class: ${pred.class}, Score: ${pred.score}, MinConfidence: ${minConfidence}, IsTarget: ${isTargetClass}`);
                             return pred.score >= minConfidence;
                         })
                         .map(pred => {
@@ -637,8 +642,11 @@
                             };
                         });
 
+                    console.log('Filtered predictions:', filteredPredictions);
+
                     // Track objects and update state
                     const trackedObjects = trackObjects(filteredPredictions);
+                    console.log('Tracked objects:', trackedObjects);
                     setDetections(trackedObjects);
                     previousDetectionsRef.current = trackedObjects;
 
@@ -648,6 +656,32 @@
                     isDetectingRef.current = false;
                 }
             }, [videoRef, isTransitioning]);
+
+            // Optimized rendering loop
+            React.useEffect(() => {
+                let animationFrameId;
+                let lastDetectionTime = 0;
+                const detectionInterval = 1000 / 30; // Target 30 FPS for detection
+
+                const renderLoop = (timestamp) => {
+                    if (timestamp - lastDetectionTime >= detectionInterval) {
+                        detectObjects();
+                        lastDetectionTime = timestamp;
+                    }
+                    animationFrameId = requestAnimationFrame(renderLoop);
+                };
+
+                if (!isModelLoading && !error) {
+                    console.log('Starting detection loop...');
+                    animationFrameId = requestAnimationFrame(renderLoop);
+                }
+
+                return () => {
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                    }
+                };
+            }, [isModelLoading, error, detectObjects]);
 
             // FPS counter
             React.useEffect(() => {
@@ -803,6 +837,10 @@
                 React.createElement('div', {
                     className: 'fixed top-4 left-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm'
                 }, `${fps} FPS`),
+                // Detection Status
+                React.createElement('div', {
+                    className: 'fixed top-4 right-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm'
+                }, `Detections: ${detections.length}`),
                 // Camera Switch Button
                 React.createElement('button', {
                     onClick: handleCameraSwitch,
@@ -821,14 +859,30 @@
                             top: `${detection.lastBbox[1]}px`,
                             width: `${detection.lastBbox[2]}px`,
                             height: `${detection.lastBbox[3]}px`,
-                            borderColor: detection.age > 10 ? '#2ecc71' : '#3498db'
+                            borderColor: detection.age > 10 ? '#2ecc71' : '#3498db',
+                            position: 'absolute',
+                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                            color: 'white',
+                            padding: '8px',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            transition: 'all 0.3s ease',
+                            border: '2px solid #fff',
+                            zIndex: 1000
                         }
                     },
                         React.createElement('div', { className: 'flex items-center gap-2' },
                             brand && React.createElement('img', {
                                 src: brandLogos[brand],
                                 alt: brand,
-                                className: 'brand-logo'
+                                className: 'brand-logo',
+                                style: {
+                                    width: '24px',
+                                    height: '24px',
+                                    objectFit: 'contain'
+                                }
                             }),
                             React.createElement('span', null, `${detection.class} (${Math.round(detection.confidence * 100)}%)`),
                             React.createElement('a', {
