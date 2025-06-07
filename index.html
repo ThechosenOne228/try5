@@ -476,6 +476,8 @@
             const isDetectingRef = React.useRef(false);
             const previousDetectionsRef = React.useRef([]);
             const objectTracksRef = React.useRef(new Map());
+            const overlayCanvasRef = React.useRef(null);
+            const overlayContextRef = React.useRef(null);
 
             // Target object classes with their minimum confidence thresholds
             const TARGET_CLASSES = {
@@ -576,9 +578,103 @@
                 return Array.from(currentTracks.values());
             };
 
+            // Mock product metadata
+            const mockProductData = {
+                'person': {
+                    title: 'Person',
+                    description: 'Human detected',
+                    color: '#FF0000'
+                },
+                'car': {
+                    title: 'Vehicle',
+                    description: 'Automobile detected',
+                    color: '#0000FF'
+                },
+                'shoe': {
+                    title: 'Nike Air Max 90',
+                    description: 'Classic sneaker',
+                    price: '$129.99',
+                    color: '#00FF00'
+                },
+                'cell phone': {
+                    title: 'iPhone 14 Pro',
+                    description: 'Latest smartphone',
+                    price: '$999.99',
+                    color: '#FF00FF'
+                },
+                'laptop': {
+                    title: 'MacBook Pro',
+                    description: 'Professional laptop',
+                    price: '$1999.99',
+                    color: '#FFFF00'
+                }
+            };
+
+            // Draw detection overlays
+            const drawOverlays = React.useCallback((detections) => {
+                if (!overlayContextRef.current || !detections) return;
+
+                const ctx = overlayContextRef.current;
+                const canvas = overlayCanvasRef.current;
+                
+                // Ensure canvas dimensions match window
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                
+                // Clear previous frame
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                detections.forEach(detection => {
+                    if (!detection.lastBbox || detection.lastBbox.length !== 4) return;
+                    
+                    const [x, y, width, height] = detection.lastBbox;
+                    const metadata = mockProductData[detection.class] || {
+                        title: detection.class,
+                        description: 'Object detected',
+                        color: '#FFFFFF'
+                    };
+
+                    // Ensure coordinates are within canvas bounds
+                    const safeX = Math.max(0, Math.min(x, canvas.width));
+                    const safeY = Math.max(0, Math.min(y, canvas.height));
+                    const safeWidth = Math.min(width, canvas.width - safeX);
+                    const safeHeight = Math.min(height, canvas.height - safeY);
+
+                    // Draw bounding box
+                    ctx.strokeStyle = metadata.color;
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(safeX, safeY, safeWidth, safeHeight);
+
+                    // Calculate label position
+                    const labelY = Math.max(0, safeY - 60);
+                    const labelText = `${metadata.title} (${Math.round(detection.confidence * 100)}%)`;
+                    ctx.font = '14px Arial';
+                    const textMetrics = ctx.measureText(labelText);
+                    const labelWidth = textMetrics.width + 20;
+                    const labelHeight = 60;
+
+                    // Ensure label stays within canvas bounds
+                    const labelX = Math.min(safeX, canvas.width - labelWidth);
+
+                    // Draw label background
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
+
+                    // Draw label text
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillText(labelText, labelX + 10, labelY + 20);
+                    
+                    if (metadata.price) {
+                        ctx.fillText(metadata.price, labelX + 10, labelY + 40);
+                    }
+                    ctx.fillText(metadata.description, labelX + 10, labelY + 60);
+                });
+            }, []);
+
             // Optimized detection loop
             const detectObjects = React.useCallback(async () => {
                 if (!modelRef.current || !videoRef || !detectionContextRef.current || isTransitioning || isDetectingRef.current) {
+                    requestAnimationFrame(detectObjects);
                     return;
                 }
 
@@ -588,6 +684,14 @@
                     // Scale down video frame for detection
                     const ctx = detectionContextRef.current;
                     const canvas = detectionCanvasRef.current;
+                    
+                    if (!ctx || !canvas || !videoRef.videoWidth || !videoRef.videoHeight) {
+                        requestAnimationFrame(detectObjects);
+                        return;
+                    }
+                    
+                    // Clear previous frame
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
                     
                     // Calculate aspect ratio to maintain video proportions
                     const videoAspectRatio = videoRef.videoWidth / videoRef.videoHeight;
@@ -616,11 +720,16 @@
                     // Run detection on scaled frame
                     const predictions = await modelRef.current.detect(canvas);
 
+                    if (!predictions || !Array.isArray(predictions)) {
+                        requestAnimationFrame(detectObjects);
+                        return;
+                    }
+
                     // Filter and process predictions
                     const filteredPredictions = predictions
                         .filter(pred => {
                             const minConfidence = TARGET_CLASSES[pred.class] || 0.5;
-                            return pred.score >= minConfidence;
+                            return pred.score >= minConfidence && pred.bbox && pred.bbox.length === 4;
                         })
                         .map(pred => {
                             // Scale predictions back to original video size
@@ -642,12 +751,66 @@
                     setDetections(trackedObjects);
                     previousDetectionsRef.current = trackedObjects;
 
+                    // Draw overlays
+                    drawOverlays(trackedObjects);
+
                 } catch (err) {
                     console.error('Detection error:', err);
                 } finally {
                     isDetectingRef.current = false;
+                    requestAnimationFrame(detectObjects);
                 }
-            }, [videoRef, isTransitioning]);
+            }, [videoRef, isTransitioning, drawOverlays]);
+
+            // Initialize canvases
+            React.useEffect(() => {
+                let animationFrameId;
+
+                // Detection canvas
+                const detectionCanvas = document.createElement('canvas');
+                detectionCanvas.width = 640;
+                detectionCanvas.height = 480;
+                detectionCanvasRef.current = detectionCanvas;
+                detectionContextRef.current = detectionCanvas.getContext('2d');
+
+                // Overlay canvas
+                const overlayCanvas = document.createElement('canvas');
+                overlayCanvas.width = window.innerWidth;
+                overlayCanvas.height = window.innerHeight;
+                overlayCanvas.style.position = 'absolute';
+                overlayCanvas.style.top = '0';
+                overlayCanvas.style.left = '0';
+                overlayCanvas.style.pointerEvents = 'none';
+                overlayCanvas.style.zIndex = '1000';
+                document.body.appendChild(overlayCanvas);
+                overlayCanvasRef.current = overlayCanvas;
+                overlayContextRef.current = overlayCanvas.getContext('2d');
+
+                // Handle window resize
+                const handleResize = () => {
+                    if (overlayCanvasRef.current) {
+                        overlayCanvasRef.current.width = window.innerWidth;
+                        overlayCanvasRef.current.height = window.innerHeight;
+                    }
+                };
+                window.addEventListener('resize', handleResize);
+
+                // Start detection loop
+                const startDetection = () => {
+                    animationFrameId = requestAnimationFrame(detectObjects);
+                };
+                startDetection();
+
+                return () => {
+                    window.removeEventListener('resize', handleResize);
+                    if (overlayCanvasRef.current) {
+                        document.body.removeChild(overlayCanvasRef.current);
+                    }
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                    }
+                };
+            }, [detectObjects]);
 
             // FPS counter
             React.useEffect(() => {
@@ -676,15 +839,6 @@
                     )
                 );
             };
-
-            // Initialize detection canvas
-            React.useEffect(() => {
-                const canvas = document.createElement('canvas');
-                canvas.width = 640; // Reduced resolution for detection
-                canvas.height = 480;
-                detectionCanvasRef.current = canvas;
-                detectionContextRef.current = canvas.getContext('2d');
-            }, []);
 
             // Load the COCO-SSD model
             React.useEffect(() => {
@@ -810,36 +964,6 @@
                     title: `Switch to ${isFrontCamera ? 'back' : 'front'} camera`,
                     disabled: isTransitioning
                 }, '📷'),
-                // Detection Labels
-                detections.map((detection, index) => {
-                    const brand = detectBrand(detection.class);
-                    return React.createElement('div', {
-                        key: detection.id || index,
-                        className: 'detection-label',
-                        style: {
-                            left: `${detection.lastBbox[0]}px`,
-                            top: `${detection.lastBbox[1]}px`,
-                            width: `${detection.lastBbox[2]}px`,
-                            height: `${detection.lastBbox[3]}px`,
-                            borderColor: detection.age > 10 ? '#2ecc71' : '#3498db'
-                        }
-                    },
-                        React.createElement('div', { className: 'flex items-center gap-2' },
-                            brand && React.createElement('img', {
-                                src: brandLogos[brand],
-                                alt: brand,
-                                className: 'brand-logo'
-                            }),
-                            React.createElement('span', null, `${detection.class} (${Math.round(detection.confidence * 100)}%)`),
-                            React.createElement('a', {
-                                href: `https://www.google.com/search?tbm=shop&q=${detection.class}`,
-                                target: '_blank',
-                                rel: 'noopener noreferrer',
-                                className: 'text-blue-400 hover:text-blue-300'
-                            }, '🔍')
-                        )
-                    );
-                }),
                 // Share Button
                 React.createElement('button', {
                     onClick: handleShare,
