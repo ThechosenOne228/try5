@@ -474,32 +474,107 @@
             const detectionCanvasRef = React.useRef(null);
             const detectionContextRef = React.useRef(null);
             const isDetectingRef = React.useRef(false);
+            const previousDetectionsRef = React.useRef([]);
+            const objectTracksRef = React.useRef(new Map());
 
-            // Initialize detection canvas
-            React.useEffect(() => {
-                const canvas = document.createElement('canvas');
-                canvas.width = 640; // Reduced resolution for detection
-                canvas.height = 480;
-                detectionCanvasRef.current = canvas;
-                detectionContextRef.current = canvas.getContext('2d');
-            }, []);
+            // Target object classes with their minimum confidence thresholds
+            const TARGET_CLASSES = {
+                'person': 0.6,
+                'car': 0.7,
+                'shoe': 0.65,
+                'cell phone': 0.7,
+                'laptop': 0.7
+            };
 
-            // FPS counter
-            React.useEffect(() => {
-                const updateFPS = () => {
-                    const now = performance.now();
-                    const elapsed = now - lastTimeRef.current;
-                    frameCountRef.current++;
+            // Calculate IoU (Intersection over Union) between two bounding boxes
+            const calculateIoU = (box1, box2) => {
+                const [x1, y1, w1, h1] = box1;
+                const [x2, y2, w2, h2] = box2;
+                
+                const intersectionX = Math.max(x1, x2);
+                const intersectionY = Math.max(y1, y2);
+                const intersectionWidth = Math.min(x1 + w1, x2 + w2) - intersectionX;
+                const intersectionHeight = Math.min(y1 + h1, y2 + h2) - intersectionY;
+                
+                if (intersectionWidth <= 0 || intersectionHeight <= 0) return 0;
+                
+                const intersectionArea = intersectionWidth * intersectionHeight;
+                const box1Area = w1 * h1;
+                const box2Area = w2 * h2;
+                
+                return intersectionArea / (box1Area + box2Area - intersectionArea);
+            };
 
-                    if (elapsed >= 1000) {
-                        setFps(Math.round((frameCountRef.current * 1000) / elapsed));
-                        frameCountRef.current = 0;
-                        lastTimeRef.current = now;
+            // Smooth bounding box coordinates
+            const smoothBoundingBox = (current, previous, alpha = 0.3) => {
+                if (!previous) return current;
+                return current.map((coord, i) => 
+                    previous[i] + alpha * (coord - previous[i])
+                );
+            };
+
+            // Track objects across frames
+            const trackObjects = (newDetections) => {
+                const currentTracks = new Map(objectTracksRef.current);
+                const matchedTracks = new Set();
+                const unmatchedDetections = [];
+
+                // Match new detections with existing tracks
+                newDetections.forEach((detection, detectionIndex) => {
+                    let bestMatch = null;
+                    let bestIoU = 0.3; // Minimum IoU threshold
+
+                    currentTracks.forEach((track, trackId) => {
+                        const iou = calculateIoU(detection.bbox, track.lastBbox);
+                        if (iou > bestIoU) {
+                            bestIoU = iou;
+                            bestMatch = trackId;
+                        }
+                    });
+
+                    if (bestMatch) {
+                        // Update existing track
+                        const track = currentTracks.get(bestMatch);
+                        const smoothedBbox = smoothBoundingBox(detection.bbox, track.lastBbox);
+                        currentTracks.set(bestMatch, {
+                            ...track,
+                            lastBbox: smoothedBbox,
+                            confidence: detection.score,
+                            class: detection.class,
+                            age: track.age + 1,
+                            lastSeen: frameCountRef.current
+                        });
+                        matchedTracks.add(bestMatch);
+                    } else {
+                        unmatchedDetections.push(detectionIndex);
                     }
-                    requestAnimationFrame(updateFPS);
-                };
-                requestAnimationFrame(updateFPS);
-            }, []);
+                });
+
+                // Remove old tracks
+                currentTracks.forEach((track, trackId) => {
+                    if (!matchedTracks.has(trackId) && 
+                        frameCountRef.current - track.lastSeen > 30) { // Remove after 30 frames
+                        currentTracks.delete(trackId);
+                    }
+                });
+
+                // Create new tracks for unmatched detections
+                unmatchedDetections.forEach(detectionIndex => {
+                    const detection = newDetections[detectionIndex];
+                    const trackId = `track_${Date.now()}_${detectionIndex}`;
+                    currentTracks.set(trackId, {
+                        id: trackId,
+                        lastBbox: detection.bbox,
+                        confidence: detection.score,
+                        class: detection.class,
+                        age: 1,
+                        lastSeen: frameCountRef.current
+                    });
+                });
+
+                objectTracksRef.current = currentTracks;
+                return Array.from(currentTracks.values());
+            };
 
             // Optimized detection loop
             const detectObjects = React.useCallback(async () => {
@@ -541,21 +616,32 @@
                     // Run detection on scaled frame
                     const predictions = await modelRef.current.detect(canvas);
 
-                    // Scale predictions back to original video size
-                    const scaleX = videoRef.videoWidth / canvas.width;
-                    const scaleY = videoRef.videoHeight / canvas.height;
+                    // Filter and process predictions
+                    const filteredPredictions = predictions
+                        .filter(pred => {
+                            const minConfidence = TARGET_CLASSES[pred.class] || 0.5;
+                            return pred.score >= minConfidence;
+                        })
+                        .map(pred => {
+                            // Scale predictions back to original video size
+                            const scaleX = videoRef.videoWidth / canvas.width;
+                            const scaleY = videoRef.videoHeight / canvas.height;
+                            return {
+                                ...pred,
+                                bbox: [
+                                    pred.bbox[0] * scaleX,
+                                    pred.bbox[1] * scaleY,
+                                    pred.bbox[2] * scaleX,
+                                    pred.bbox[3] * scaleY
+                                ]
+                            };
+                        });
 
-                    const scaledPredictions = predictions.map(pred => ({
-                        ...pred,
-                        bbox: [
-                            pred.bbox[0] * scaleX,
-                            pred.bbox[1] * scaleY,
-                            pred.bbox[2] * scaleX,
-                            pred.bbox[3] * scaleY
-                        ]
-                    }));
+                    // Track objects and update state
+                    const trackedObjects = trackObjects(filteredPredictions);
+                    setDetections(trackedObjects);
+                    previousDetectionsRef.current = trackedObjects;
 
-                    setDetections(scaledPredictions);
                 } catch (err) {
                     console.error('Detection error:', err);
                 } finally {
@@ -563,30 +649,42 @@
                 }
             }, [videoRef, isTransitioning]);
 
-            // Optimized rendering loop
+            // FPS counter
             React.useEffect(() => {
-                let animationFrameId;
-                let lastDetectionTime = 0;
-                const detectionInterval = 1000 / 30; // Target 30 FPS for detection
+                const updateFPS = () => {
+                    const now = performance.now();
+                    const elapsed = now - lastTimeRef.current;
+                    frameCountRef.current++;
 
-                const renderLoop = (timestamp) => {
-                    if (timestamp - lastDetectionTime >= detectionInterval) {
-                        detectObjects();
-                        lastDetectionTime = timestamp;
+                    if (elapsed >= 1000) {
+                        setFps(Math.round((frameCountRef.current * 1000) / elapsed));
+                        frameCountRef.current = 0;
+                        lastTimeRef.current = now;
                     }
-                    animationFrameId = requestAnimationFrame(renderLoop);
+                    requestAnimationFrame(updateFPS);
                 };
+                requestAnimationFrame(updateFPS);
+            }, []);
 
-                if (!isModelLoading && !error) {
-                    animationFrameId = requestAnimationFrame(renderLoop);
-                }
+            // Update loading step
+            const updateLoadingStep = (stepId, status) => {
+                setLoadingSteps(prevSteps => 
+                    prevSteps.map(step => 
+                        step.id === stepId 
+                            ? { ...step, status } 
+                            : step
+                    )
+                );
+            };
 
-                return () => {
-                    if (animationFrameId) {
-                        cancelAnimationFrame(animationFrameId);
-                    }
-                };
-            }, [isModelLoading, error, detectObjects]);
+            // Initialize detection canvas
+            React.useEffect(() => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 640; // Reduced resolution for detection
+                canvas.height = 480;
+                detectionCanvasRef.current = canvas;
+                detectionContextRef.current = canvas.getContext('2d');
+            }, []);
 
             // Load the COCO-SSD model
             React.useEffect(() => {
@@ -716,13 +814,14 @@
                 detections.map((detection, index) => {
                     const brand = detectBrand(detection.class);
                     return React.createElement('div', {
-                        key: index,
+                        key: detection.id || index,
                         className: 'detection-label',
                         style: {
-                            left: `${detection.bbox[0]}px`,
-                            top: `${detection.bbox[1]}px`,
-                            width: `${detection.bbox[2]}px`,
-                            height: `${detection.bbox[3]}px`
+                            left: `${detection.lastBbox[0]}px`,
+                            top: `${detection.lastBbox[1]}px`,
+                            width: `${detection.lastBbox[2]}px`,
+                            height: `${detection.lastBbox[3]}px`,
+                            borderColor: detection.age > 10 ? '#2ecc71' : '#3498db'
                         }
                     },
                         React.createElement('div', { className: 'flex items-center gap-2' },
@@ -731,7 +830,7 @@
                                 alt: brand,
                                 className: 'brand-logo'
                             }),
-                            React.createElement('span', null, detection.class),
+                            React.createElement('span', null, `${detection.class} (${Math.round(detection.confidence * 100)}%)`),
                             React.createElement('a', {
                                 href: `https://www.google.com/search?tbm=shop&q=${detection.class}`,
                                 target: '_blank',
