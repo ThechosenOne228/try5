@@ -522,8 +522,8 @@
                 );
             };
 
-            // Enhanced product database with detailed information
-            const productDatabase = {
+            // Enhanced mock product metadata with more objects and styling
+            const mockProductData = {
                 'person': {
                     title: 'Person',
                     description: 'Human detected',
@@ -535,84 +535,66 @@
                         labelBg: 'rgba(255, 0, 0, 0.7)'
                     }
                 },
-                'shoe': {
-                    title: 'Nike Air Force 1',
-                    description: 'Classic white sneakers with Air cushioning',
-                    price: '$99.99',
-                    color: '#FFFFFF',
-                    brand: 'Nike',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [5, 5],
-                        labelBg: 'rgba(0, 255, 0, 0.7)'
-                    }
-                },
-                'glasses': {
-                    title: 'Ray-Ban Aviator',
-                    description: 'Classic aviator sunglasses with gold frame',
-                    price: '$154.00',
-                    color: '#FFD700',
-                    brand: 'Ray-Ban',
-                    style: {
-                        lineWidth: 1,
-                        lineDash: [2, 2],
-                        labelBg: 'rgba(0, 255, 255, 0.7)'
-                    }
-                },
-                'hat': {
-                    title: 'New Era Cap',
-                    description: 'Classic baseball cap with embroidered logo',
-                    price: '$29.99',
-                    color: '#000000',
-                    brand: 'New Era',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(128, 128, 128, 0.7)'
-                    }
-                },
-                'jacket': {
-                    title: 'Nike Club Fleece',
-                    description: 'Red hoodie with brushed fleece interior',
-                    price: '$69.99',
-                    color: '#FF0000',
-                    brand: 'Nike',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(255, 0, 0, 0.7)'
-                    }
-                },
-                'pants': {
-                    title: 'Levi\'s 501',
-                    description: 'Classic blue jeans with straight fit',
-                    price: '$59.99',
+                'car': {
+                    title: 'Vehicle',
+                    description: 'Automobile detected',
                     color: '#0000FF',
-                    brand: 'Levi\'s',
+                    brand: 'Vehicle',
                     style: {
                         lineWidth: 2,
                         lineDash: [],
                         labelBg: 'rgba(0, 0, 255, 0.7)'
                     }
                 },
-                'shirt': {
-                    title: 'Uniqlo T-Shirt',
-                    description: 'Basic cotton t-shirt',
-                    price: '$19.99',
-                    color: '#FFFFFF',
-                    brand: 'Uniqlo',
+                'shoe': {
+                    title: 'Footwear',
+                    description: 'Shoe detected',
+                    color: '#00FF00',
+                    brand: 'Footwear',
+                    style: {
+                        lineWidth: 2,
+                        lineDash: [5, 5],
+                        labelBg: 'rgba(0, 255, 0, 0.7)'
+                    }
+                },
+                'cell phone': {
+                    title: 'Mobile Device',
+                    description: 'Smartphone detected',
+                    color: '#FF00FF',
+                    brand: 'Device',
                     style: {
                         lineWidth: 2,
                         lineDash: [],
-                        labelBg: 'rgba(255, 255, 255, 0.7)'
+                        labelBg: 'rgba(255, 0, 255, 0.7)'
+                    }
+                },
+                'laptop': {
+                    title: 'Computer',
+                    description: 'Laptop detected',
+                    color: '#FFFF00',
+                    brand: 'Computer',
+                    style: {
+                        lineWidth: 2,
+                        lineDash: [],
+                        labelBg: 'rgba(255, 255, 0, 0.7)'
+                    }
+                },
+                'glasses': {
+                    title: 'Eyewear',
+                    description: 'Glasses detected',
+                    color: '#00FFFF',
+                    brand: 'Eyewear',
+                    style: {
+                        lineWidth: 1,
+                        lineDash: [2, 2],
+                        labelBg: 'rgba(0, 255, 255, 0.7)'
                     }
                 },
                 'watch': {
-                    title: 'Apple Watch Series 8',
-                    description: 'Smartwatch with health features',
-                    price: '$399.00',
-                    color: '#000000',
-                    brand: 'Apple',
+                    title: 'Watch',
+                    description: 'Timepiece detected',
+                    color: '#FFA500',
+                    brand: 'Watch',
                     style: {
                         lineWidth: 1,
                         lineDash: [3, 3],
@@ -620,93 +602,119 @@
                     }
                 },
                 'backpack': {
-                    title: 'Jansport Right Pack',
-                    description: 'Classic backpack with laptop sleeve',
-                    price: '$49.99',
+                    title: 'Backpack',
+                    description: 'Bag detected',
                     color: '#800080',
-                    brand: 'Jansport',
+                    brand: 'Bag',
                     style: {
                         lineWidth: 2,
                         lineDash: [],
                         labelBg: 'rgba(128, 0, 128, 0.7)'
                     }
+                },
+                'handbag': {
+                    title: 'Bag',
+                    description: 'Handbag detected',
+                    color: '#A52A2A',
+                    brand: 'Bag',
+                    style: {
+                        lineWidth: 2,
+                        lineDash: [4, 4],
+                        labelBg: 'rgba(165, 42, 42, 0.7)'
+                    }
                 }
             };
 
-            // Track detected objects with unique IDs
-            const [detectedObjects, setDetectedObjects] = React.useState(new Map());
-            const nextObjectId = React.useRef(0);
+            // Object expiry settings
+            const OBJECT_EXPIRY_FRAMES = 30; // ~1 second at 30fps
+            const objectLastSeenRef = React.useRef(new Map());
 
-            // Function to assign or update object IDs
-            const updateObjectIds = (newDetections) => {
-                const updatedObjects = new Map(detectedObjects);
+            // Track objects with expiry
+            const trackObjects = React.useCallback((predictions) => {
+                const currentTracks = new Map(objectTracksRef.current);
                 const currentTime = Date.now();
 
-                // Remove old objects (not seen in last 2 seconds)
-                for (const [id, obj] of updatedObjects) {
-                    if (currentTime - obj.lastSeen > 2000) {
-                        updatedObjects.delete(id);
+                // Update last seen time for all current detections
+                predictions.forEach(pred => {
+                    const key = `${pred.class}-${pred.bbox.join(',')}`;
+                    objectLastSeenRef.current.set(key, currentTime);
+                });
+
+                // Remove expired objects
+                for (const [key, lastSeen] of objectLastSeenRef.current) {
+                    if (currentTime - lastSeen > OBJECT_EXPIRY_FRAMES * (1000 / 30)) {
+                        objectLastSeenRef.current.delete(key);
+                        currentTracks.delete(key);
                     }
                 }
 
-                // Update or assign IDs to new detections
-                newDetections.forEach(detection => {
-                    const [x, y, width, height] = detection.bbox;
-                    let matchedId = null;
-
-                    // Try to match with existing objects
-                    for (const [id, obj] of updatedObjects) {
-                        const [oldX, oldY, oldWidth, oldHeight] = obj.bbox;
-                        const overlap = calculateOverlap(
-                            {x, y, width, height},
-                            {x: oldX, y: oldY, width: oldWidth, height: oldHeight}
-                        );
-                        
-                        if (overlap > 0.5 && obj.class === detection.class) {
-                            matchedId = id;
-                            break;
-                        }
-                    }
-
-                    if (matchedId) {
-                        // Update existing object
-                        updatedObjects.set(matchedId, {
-                            ...detection,
-                            id: matchedId,
-                            lastSeen: currentTime
+                // Update tracks with new predictions
+                predictions.forEach(pred => {
+                    const key = `${pred.class}-${pred.bbox.join(',')}`;
+                    const existingTrack = currentTracks.get(key);
+                    
+                    if (existingTrack) {
+                        // Update existing track
+                        currentTracks.set(key, {
+                            ...existingTrack,
+                            lastBbox: pred.bbox,
+                            confidence: pred.score,
+                            age: existingTrack.age + 1
                         });
                     } else {
-                        // Create new object
-                        updatedObjects.set(nextObjectId.current, {
-                            ...detection,
-                            id: nextObjectId.current,
-                            lastSeen: currentTime
+                        // Create new track
+                        currentTracks.set(key, {
+                            id: key,
+                            class: pred.class,
+                            lastBbox: pred.bbox,
+                            confidence: pred.score,
+                            age: 0
                         });
-                        nextObjectId.current++;
                     }
                 });
 
-                return updatedObjects;
-            };
+                objectTracksRef.current = currentTracks;
+                return Array.from(currentTracks.values());
+            }, []);
 
-            // Calculate overlap between two bounding boxes
-            const calculateOverlap = (box1, box2) => {
-                const x1 = Math.max(box1.x, box2.x);
-                const y1 = Math.max(box1.y, box2.y);
-                const x2 = Math.min(box1.x + box1.width, box2.x + box2.width);
-                const y2 = Math.min(box1.y + box1.height, box2.y + box2.height);
+            // Initialize canvases and handle window resize
+            React.useEffect(() => {
+                const initCanvases = () => {
+                    // Initialize detection canvas
+                    const detectionCanvas = detectionCanvasRef.current;
+                    if (detectionCanvas) {
+                        detectionCanvas.width = 640;
+                        detectionCanvas.height = 480;
+                        detectionCanvas.style.display = 'none'; // Hide detection canvas
+                        const detectionCtx = detectionCanvas.getContext('2d');
+                        if (detectionCtx) {
+                            detectionContextRef.current = detectionCtx;
+                        }
+                    }
 
-                if (x2 < x1 || y2 < y1) return 0;
+                    // Initialize overlay canvas
+                    const overlayCanvas = overlayCanvasRef.current;
+                    if (overlayCanvas) {
+                        overlayCanvas.width = window.innerWidth;
+                        overlayCanvas.height = window.innerHeight;
+                        overlayCanvas.style.position = 'fixed';
+                        overlayCanvas.style.top = '0';
+                        overlayCanvas.style.left = '0';
+                        overlayCanvas.style.pointerEvents = 'none';
+                        overlayCanvas.style.zIndex = '1000';
+                        const overlayCtx = overlayCanvas.getContext('2d');
+                        if (overlayCtx) {
+                            overlayContextRef.current = overlayCtx;
+                        }
+                    }
+                };
 
-                const intersection = (x2 - x1) * (y2 - y1);
-                const box1Area = box1.width * box1.height;
-                const box2Area = box2.width * box2.height;
-                const union = box1Area + box2Area - intersection;
+                initCanvases();
+                window.addEventListener('resize', initCanvases);
+                return () => window.removeEventListener('resize', initCanvases);
+            }, []);
 
-                return intersection / union;
-            };
-
-            // Draw detection overlays with enhanced styling
+            // Draw detection overlays with optimized rendering
             const drawOverlays = React.useCallback((detections) => {
                 if (!overlayContextRef.current || !detections) return;
 
@@ -719,21 +727,19 @@
                 canvas.width = window.innerWidth;
                 canvas.height = window.innerHeight;
                 
-                // Clear previous frame
+                // Clear previous frame completely
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Update object IDs and get current detections
-                const updatedObjects = updateObjectIds(detections);
-                setDetectedObjects(updatedObjects);
-
-                // Draw detections with enhanced styling
-                updatedObjects.forEach(obj => {
-                    const [x, y, width, height] = obj.bbox;
-                    const metadata = productDatabase[obj.class] || {
-                        title: obj.class,
+                // Draw only live detections
+                detections.forEach(detection => {
+                    if (!detection.bbox || detection.bbox.length !== 4) return;
+                    
+                    const [x, y, width, height] = detection.bbox;
+                    const metadata = mockProductData[detection.class] || {
+                        title: detection.class,
                         description: 'Object detected',
                         color: '#FFFFFF',
-                        brand: obj.class,
+                        brand: detection.class,
                         style: {
                             lineWidth: 2,
                             lineDash: [],
@@ -757,35 +763,24 @@
                     }
                     ctx.strokeRect(safeX, safeY, safeWidth, safeHeight);
 
-                    // Prepare label text
+                    // Calculate label position (prefer top-left, fallback to bottom)
                     const labelText = [
                         `${metadata.brand}`,
                         `${metadata.title}`,
-                        metadata.price ? `${metadata.price}` : '',
                         `${metadata.description}`
                     ].filter(Boolean);
 
-                    // Calculate label position based on object type
                     ctx.font = '14px Arial';
                     const textMetrics = ctx.measureText(labelText[0]);
                     const labelWidth = Math.max(...labelText.map(text => ctx.measureText(text).width)) + 20;
                     const labelHeight = labelText.length * 20 + 10;
 
-                    // Position label based on object type
-                    let labelX, labelY;
-                    if (obj.class === 'shoe') {
-                        labelX = safeX;
-                        labelY = safeY + safeHeight + 5;
-                    } else if (obj.class === 'hat' || obj.class === 'glasses') {
-                        labelX = safeX;
-                        labelY = safeY - labelHeight - 5;
-                    } else {
-                        const hasSpaceOnTop = safeY > labelHeight;
-                        labelY = hasSpaceOnTop ? safeY - labelHeight : safeY + safeHeight;
-                        labelX = Math.min(safeX, canvas.width - labelWidth);
-                    }
+                    // Determine if label should go on top or bottom
+                    const hasSpaceOnTop = safeY > labelHeight;
+                    const labelY = hasSpaceOnTop ? safeY - labelHeight : safeY + safeHeight;
+                    const labelX = Math.min(safeX, canvas.width - labelWidth);
 
-                    // Draw label background
+                    // Draw label background with object-specific color
                     ctx.fillStyle = metadata.style.labelBg;
                     ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
 
