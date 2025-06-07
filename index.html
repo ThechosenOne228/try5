@@ -527,7 +527,64 @@
             const nextIdRef = React.useRef(1);
             const lastUpdateTimeRef = React.useRef(Date.now());
 
-            // Enhanced mock product metadata with more objects and styling
+            // Color detection system
+            const detectColor = React.useCallback((ctx, x, y, width, height) => {
+                try {
+                    const imageData = ctx.getImageData(x, y, width, height);
+                    const data = imageData.data;
+                    let r = 0, g = 0, b = 0;
+                    let count = 0;
+
+                    // Sample pixels for color analysis
+                    for (let i = 0; i < data.length; i += 16) { // Sample every 4th pixel
+                        r += data[i];
+                        g += data[i + 1];
+                        b += data[i + 2];
+                        count++;
+                    }
+
+                    r = Math.round(r / count);
+                    g = Math.round(g / count);
+                    b = Math.round(b / count);
+
+                    // Convert RGB to color name
+                    const colors = {
+                        'red': [255, 0, 0],
+                        'green': [0, 255, 0],
+                        'blue': [0, 0, 255],
+                        'yellow': [255, 255, 0],
+                        'purple': [128, 0, 128],
+                        'orange': [255, 165, 0],
+                        'pink': [255, 192, 203],
+                        'brown': [165, 42, 42],
+                        'black': [0, 0, 0],
+                        'white': [255, 255, 255],
+                        'gray': [128, 128, 128]
+                    };
+
+                    let closestColor = 'unknown';
+                    let minDistance = Infinity;
+
+                    for (const [color, [cr, cg, cb]] of Object.entries(colors)) {
+                        const distance = Math.sqrt(
+                            Math.pow(r - cr, 2) +
+                            Math.pow(g - cg, 2) +
+                            Math.pow(b - cb, 2)
+                        );
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            closestColor = color;
+                        }
+                    }
+
+                    return closestColor;
+                } catch (error) {
+                    console.error('Color detection error:', error);
+                    return 'unknown';
+                }
+            }, []);
+
+            // Enhanced mock product metadata with clothing attributes
             const mockProductData = {
                 'person': {
                     title: 'Person',
@@ -540,11 +597,22 @@
                         labelBg: 'rgba(255, 0, 0, 0.7)'
                     }
                 },
-                'car': {
-                    title: 'Vehicle',
-                    description: 'Automobile detected',
+                'shirt': {
+                    title: 'Shirt',
+                    description: 'Upper garment',
+                    color: '#FF00FF',
+                    brand: 'Clothing',
+                    style: {
+                        lineWidth: 2,
+                        lineDash: [],
+                        labelBg: 'rgba(255, 0, 255, 0.7)'
+                    }
+                },
+                'pants': {
+                    title: 'Pants',
+                    description: 'Lower garment',
                     color: '#0000FF',
-                    brand: 'Vehicle',
+                    brand: 'Clothing',
                     style: {
                         lineWidth: 2,
                         lineDash: [],
@@ -562,50 +630,6 @@
                         labelBg: 'rgba(0, 255, 0, 0.7)'
                     }
                 },
-                'cell phone': {
-                    title: 'Mobile Device',
-                    description: 'Smartphone detected',
-                    color: '#FF00FF',
-                    brand: 'Device',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(255, 0, 255, 0.7)'
-                    }
-                },
-                'laptop': {
-                    title: 'Computer',
-                    description: 'Laptop detected',
-                    color: '#FFFF00',
-                    brand: 'Computer',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(255, 255, 0, 0.7)'
-                    }
-                },
-                'glasses': {
-                    title: 'Eyewear',
-                    description: 'Glasses detected',
-                    color: '#00FFFF',
-                    brand: 'Eyewear',
-                    style: {
-                        lineWidth: 1,
-                        lineDash: [2, 2],
-                        labelBg: 'rgba(0, 255, 255, 0.7)'
-                    }
-                },
-                'watch': {
-                    title: 'Watch',
-                    description: 'Timepiece detected',
-                    color: '#FFA500',
-                    brand: 'Watch',
-                    style: {
-                        lineWidth: 1,
-                        lineDash: [3, 3],
-                        labelBg: 'rgba(255, 165, 0, 0.7)'
-                    }
-                },
                 'backpack': {
                     title: 'Backpack',
                     description: 'Bag detected',
@@ -617,6 +641,39 @@
                         labelBg: 'rgba(128, 0, 128, 0.7)'
                     }
                 },
+                'hat': {
+                    title: 'Hat',
+                    description: 'Headwear detected',
+                    color: '#FFA500',
+                    brand: 'Accessory',
+                    style: {
+                        lineWidth: 2,
+                        lineDash: [3, 3],
+                        labelBg: 'rgba(255, 165, 0, 0.7)'
+                    }
+                },
+                'glasses': {
+                    title: 'Eyewear',
+                    description: 'Glasses detected',
+                    color: '#00FFFF',
+                    brand: 'Accessory',
+                    style: {
+                        lineWidth: 1,
+                        lineDash: [2, 2],
+                        labelBg: 'rgba(0, 255, 255, 0.7)'
+                    }
+                },
+                'watch': {
+                    title: 'Watch',
+                    description: 'Timepiece detected',
+                    color: '#FFA500',
+                    brand: 'Accessory',
+                    style: {
+                        lineWidth: 1,
+                        lineDash: [3, 3],
+                        labelBg: 'rgba(255, 165, 0, 0.7)'
+                    }
+                },
                 'handbag': {
                     title: 'Bag',
                     description: 'Handbag detected',
@@ -626,50 +683,6 @@
                         lineWidth: 2,
                         lineDash: [4, 4],
                         labelBg: 'rgba(165, 42, 42, 0.7)'
-                    }
-                },
-                'bottle': {
-                    title: 'Bottle',
-                    description: 'Container detected',
-                    color: '#4B0082',
-                    brand: 'Container',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(75, 0, 130, 0.7)'
-                    }
-                },
-                'cup': {
-                    title: 'Cup',
-                    description: 'Drinking vessel detected',
-                    color: '#FF1493',
-                    brand: 'Container',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [2, 2],
-                        labelBg: 'rgba(255, 20, 147, 0.7)'
-                    }
-                },
-                'chair': {
-                    title: 'Chair',
-                    description: 'Seating detected',
-                    color: '#32CD32',
-                    brand: 'Furniture',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(50, 205, 50, 0.7)'
-                    }
-                },
-                'book': {
-                    title: 'Book',
-                    description: 'Reading material detected',
-                    color: '#8B4513',
-                    brand: 'Book',
-                    style: {
-                        lineWidth: 1,
-                        lineDash: [],
-                        labelBg: 'rgba(139, 69, 19, 0.7)'
                     }
                 }
             };
@@ -763,7 +776,7 @@
                 return () => window.removeEventListener('resize', initCanvases);
             }, []);
 
-            // Draw detection overlays with optimized rendering
+            // Draw detection overlays with enhanced styling and color detection
             const drawOverlays = React.useCallback((detections) => {
                 if (!overlayContextRef.current || !detections) return;
 
@@ -779,7 +792,7 @@
                 // Clear previous frame completely
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Draw only live detections
+                // Draw tracked detections with enhanced styling
                 detections.forEach(detection => {
                     if (!detection.bbox || detection.bbox.length !== 4) return;
                     
@@ -796,6 +809,16 @@
                         }
                     };
 
+                    // Detect color for clothing items
+                    let detectedColor = 'unknown';
+                    if (['shirt', 'pants', 'shoe', 'hat', 'backpack', 'handbag'].includes(detection.class)) {
+                        detectedColor = detectColor(ctx, x, y, width, height);
+                    }
+
+                    // Calculate opacity based on object age
+                    const age = detection.age || 0;
+                    const opacity = Math.min(1, age / 1000); // Fade in over 1 second
+
                     // Ensure coordinates are within canvas bounds
                     const safeX = Math.max(0, Math.min(x, canvas.width));
                     const safeY = Math.max(0, Math.min(y, canvas.height));
@@ -805,17 +828,34 @@
                     // Draw bounding box with enhanced styling
                     ctx.strokeStyle = metadata.color;
                     ctx.lineWidth = metadata.style.lineWidth;
+                    ctx.globalAlpha = opacity;
+                    
                     if (metadata.style.lineDash.length > 0) {
                         ctx.setLineDash(metadata.style.lineDash);
                     } else {
                         ctx.setLineDash([]);
                     }
-                    ctx.strokeRect(safeX, safeY, safeWidth, safeHeight);
+                    
+                    // Draw box with rounded corners
+                    const radius = 5;
+                    ctx.beginPath();
+                    ctx.moveTo(safeX + radius, safeY);
+                    ctx.lineTo(safeX + safeWidth - radius, safeY);
+                    ctx.quadraticCurveTo(safeX + safeWidth, safeY, safeX + safeWidth, safeY + radius);
+                    ctx.lineTo(safeX + safeWidth, safeY + safeHeight - radius);
+                    ctx.quadraticCurveTo(safeX + safeWidth, safeY + safeHeight, safeX + safeWidth - radius, safeY + safeHeight);
+                    ctx.lineTo(safeX + radius, safeY + safeHeight);
+                    ctx.quadraticCurveTo(safeX, safeY + safeHeight, safeX, safeY + safeHeight - radius);
+                    ctx.lineTo(safeX, safeY + radius);
+                    ctx.quadraticCurveTo(safeX, safeY, safeX + radius, safeY);
+                    ctx.closePath();
+                    ctx.stroke();
 
-                    // Calculate label position (prefer top-left, fallback to bottom)
+                    // Draw label with enhanced styling
                     const labelText = [
                         `${metadata.brand}`,
                         `${metadata.title}`,
+                        detectedColor !== 'unknown' ? `${detectedColor}` : '',
                         `${metadata.description}`
                     ].filter(Boolean);
 
@@ -829,20 +869,29 @@
                     const labelY = hasSpaceOnTop ? safeY - labelHeight : safeY + safeHeight;
                     const labelX = Math.min(safeX, canvas.width - labelWidth);
 
-                    // Draw label background with object-specific color
+                    // Draw label background with rounded corners
                     ctx.fillStyle = metadata.style.labelBg;
-                    ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
+                    ctx.beginPath();
+                    ctx.roundRect(labelX, labelY, labelWidth, labelHeight, 5);
+                    ctx.fill();
 
-                    // Draw label text
+                    // Draw label text with shadow
                     ctx.fillStyle = '#FFFFFF';
+                    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                    ctx.shadowBlur = 2;
+                    ctx.shadowOffsetX = 1;
+                    ctx.shadowOffsetY = 1;
+                    
                     labelText.forEach((text, index) => {
                         ctx.fillText(text, labelX + 10, labelY + 20 + (index * 20));
                     });
 
-                    // Reset line dash
+                    // Reset styles
+                    ctx.shadowColor = 'transparent';
+                    ctx.globalAlpha = 1;
                     ctx.setLineDash([]);
                 });
-            }, []);
+            }, [detectColor]);
 
             // Optimized detection loop with FPS control
             const detectObjects = React.useCallback(async () => {
