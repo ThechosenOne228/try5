@@ -13,7 +13,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- TensorFlow.js -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/efficientdet@1.0.0/dist/efficientdet.min.js"></script>
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -398,7 +398,7 @@
                 'React': typeof React !== 'undefined',
                 'ReactDOM': typeof ReactDOM !== 'undefined',
                 'TensorFlow.js': typeof tf !== 'undefined',
-                'COCO-SSD': typeof cocoSsd !== 'undefined'
+                'EfficientDet': typeof efficientdet !== 'undefined'
             };
 
             const missing = Object.entries(dependencies)
@@ -720,7 +720,7 @@
                 detectionContextRef.current = canvas.getContext('2d');
             }, []);
 
-            // Load the COCO-SSD model
+            // Load the EfficientDet model
             React.useEffect(() => {
                 const loadModel = async () => {
                     try {
@@ -735,10 +735,13 @@
                         updateLoadingStep('tf', 'completed');
                         updateLoadingStep('model', 'active');
                         
-                        // Load the COCO-SSD model
+                        // Load the EfficientDet model
                         setLoadingStep('Loading AI model...');
-                        const model = await cocoSsd.load({
-                            base: 'lite_mobilenet_v2'
+                        const model = await efficientdet.load({
+                            model: 'efficientdet-d0',
+                            score: 0.3,
+                            iou: 0.5,
+                            maxBoxes: 20
                         });
                         
                         setLoadingProgress(70);
