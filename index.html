@@ -888,7 +888,82 @@
                 return () => window.removeEventListener('resize', initCanvases);
             }, []);
 
-            // Draw detection overlays with enhanced styling and attributes
+            // Product database for matching
+            const productDatabase = {
+                'shirt': [
+                    {
+                        name: 'Nike Club Fleece',
+                        price: '$69.99',
+                        description: 'Red hoodie with brushed fleece interior',
+                        attributes: {
+                            color: 'red',
+                            material: 'fleece',
+                            style: 'casual'
+                        }
+                    },
+                    {
+                        name: 'Adidas Tiro',
+                        price: '$49.99',
+                        description: 'Black training top with moisture-wicking fabric',
+                        attributes: {
+                            color: 'black',
+                            material: 'polyester',
+                            style: 'sport'
+                        }
+                    }
+                ],
+                't-shirt': [
+                    {
+                        name: 'Uniqlo Airism',
+                        price: '$19.90',
+                        description: 'White breathable t-shirt with quick-dry technology',
+                        attributes: {
+                            color: 'white',
+                            material: 'cotton',
+                            style: 'casual'
+                        }
+                    }
+                ],
+                'pants': [
+                    {
+                        name: 'Lululemon ABC',
+                        price: '$128.00',
+                        description: 'Black slim-fit pants with stretch fabric',
+                        attributes: {
+                            color: 'black',
+                            material: 'stretch',
+                            style: 'casual'
+                        }
+                    }
+                ],
+                'sneakers': [
+                    {
+                        name: 'Nike Air Force 1',
+                        price: '$100.00',
+                        description: 'White classic sneakers with air cushioning',
+                        attributes: {
+                            color: 'white',
+                            material: 'leather',
+                            style: 'casual'
+                        }
+                    }
+                ]
+            };
+
+            // Match detected item with product database
+            const matchProduct = React.useCallback((detection, detectedColor) => {
+                const category = detection.class;
+                const products = productDatabase[category] || [];
+                
+                // Find best matching product based on color and attributes
+                const bestMatch = products.find(product => 
+                    product.attributes.color === detectedColor
+                ) || products[0]; // Fallback to first product if no color match
+
+                return bestMatch;
+            }, []);
+
+            // Draw detection overlays with enhanced styling and product matching
             const drawOverlays = React.useCallback((detections) => {
                 if (!overlayContextRef.current || !detections) return;
 
@@ -927,6 +1002,9 @@
                         detectedColor = detectColor(ctx, x, y, width, height);
                     }
 
+                    // Match with product database
+                    const matchedProduct = matchProduct(detection, detectedColor);
+
                     // Calculate opacity based on object age
                     const age = detection.age || 0;
                     const opacity = Math.min(1, age / 1000); // Fade in over 1 second
@@ -963,7 +1041,7 @@
                     ctx.closePath();
                     
                     // Fill box with semi-transparent color
-                    ctx.fillStyle = `${metadata.color}33`; // 20% opacity
+                    ctx.fillStyle = `${metadata.color}66`; // 40% opacity
                     ctx.fill();
                     
                     // Draw border
@@ -971,13 +1049,14 @@
 
                     // Draw label with enhanced styling
                     const labelText = [
-                        `${metadata.brand}`,
-                        `${metadata.title}`,
+                        matchedProduct ? matchedProduct.name : metadata.brand,
+                        matchedProduct ? matchedProduct.price : '',
+                        matchedProduct ? matchedProduct.description : metadata.title,
                         detectedColor !== 'unknown' ? `${detectedColor}` : '',
                         metadata.attributes ? Object.entries(metadata.attributes)
                             .map(([key, values]) => `${key}: ${values[0]}`)
                             .join(', ') : '',
-                        `${metadata.description}`
+                        metadata.description
                     ].filter(Boolean);
 
                     ctx.font = '14px Arial';
@@ -1012,7 +1091,7 @@
                     ctx.globalAlpha = 1;
                     ctx.setLineDash([]);
                 });
-            }, [detectColor]);
+            }, [detectColor, matchProduct]);
 
             // Optimized detection loop with FPS control
             const detectObjects = React.useCallback(async () => {
@@ -1338,37 +1417,34 @@
                 }
             }, [isFrontCamera, isTransitioning, videoRef]);
 
-            // Initialize webcam with proper error handling
-            const initWebcam = React.useCallback(async () => {
+            // Fix camera initialization
+            const initializeCamera = React.useCallback(async () => {
                 try {
-                    setLoadingStep('Initializing camera...');
-                    setLoadingProgress(20);
-
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { 
-                            facingMode: 'user',
+                    const constraints = {
+                        video: {
                             width: { ideal: 1280 },
-                            height: { ideal: 720 }
+                            height: { ideal: 720 },
+                            facingMode: isFrontCamera ? 'user' : 'environment'
                         }
-                    });
+                    };
 
-                    if (videoRef) {
-                        videoRef.srcObject = stream;
-                        await new Promise((resolve) => {
-                            videoRef.onloadedmetadata = () => {
-                                videoRef.play().then(resolve);
-                            };
-                        });
-                        setLoadingProgress(40);
-                        setLoadingStep('Camera initialized successfully!');
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    const video = videoRef.current;
+                    
+                    if (video) {
+                        video.srcObject = stream;
+                        await video.play();
+                        
+                        // Ensure video is visible
+                        video.style.display = 'block';
+                        video.style.width = '100%';
+                        video.style.height = '100%';
+                        video.style.objectFit = 'cover';
                     }
-
-                } catch (err) {
-                    console.error('Webcam initialization error:', err);
-                    setLoadingStep('Failed to access camera. Please check permissions.');
-                    throw err;
+                } catch (error) {
+                    console.error('Camera initialization error:', error);
                 }
-            }, [videoRef]);
+            }, [isFrontCamera]);
 
             if (error) {
                 return React.createElement('div', { className: 'fixed inset-0 flex items-center justify-center bg-black bg-opacity-50' },
