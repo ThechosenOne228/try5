@@ -963,18 +963,19 @@
                 return bestMatch;
             }, []);
 
-            // Draw detection overlays with enhanced styling and product matching
+            // Draw detection overlays with enhanced styling and precise tracking
             const drawOverlays = React.useCallback((detections) => {
                 if (!overlayContextRef.current || !detections) return;
 
                 const ctx = overlayContextRef.current;
                 const canvas = overlayCanvasRef.current;
+                const video = videoRef.current;
                 
-                if (!canvas) return;
+                if (!canvas || !video) return;
                 
-                // Ensure canvas dimensions match window
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
+                // Ensure canvas dimensions match video
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
                 
                 // Clear previous frame completely
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -983,16 +984,20 @@
                 detections.forEach(detection => {
                     if (!detection.bbox || detection.bbox.length !== 4) return;
                     
-                    const [x, y, width, height] = detection.bbox;
+                    // Use raw model coordinates scaled to video dimensions
+                    const [x, y, width, height] = detection.bbox.map(coord => 
+                        Math.round(coord * (canvas.width / 640)) // Scale from model's 640x640 to video dimensions
+                    );
+
                     const metadata = mockProductData[detection.class] || {
                         title: detection.class,
                         description: 'Object detected',
                         color: '#FFFFFF',
                         brand: detection.class,
                         style: {
-                            lineWidth: 2,
+                            lineWidth: 3, // Increased line width
                             lineDash: [],
-                            labelBg: 'rgba(255, 255, 255, 0.7)'
+                            labelBg: 'rgba(0, 0, 0, 0.8)' // Darker background for better contrast
                         }
                     };
 
@@ -1005,20 +1010,9 @@
                     // Match with product database
                     const matchedProduct = matchProduct(detection, detectedColor);
 
-                    // Calculate opacity based on object age
-                    const age = detection.age || 0;
-                    const opacity = Math.min(1, age / 1000); // Fade in over 1 second
-
-                    // Ensure coordinates are within canvas bounds
-                    const safeX = Math.max(0, Math.min(x, canvas.width));
-                    const safeY = Math.max(0, Math.min(y, canvas.height));
-                    const safeWidth = Math.min(width, canvas.width - safeX);
-                    const safeHeight = Math.min(height, canvas.height - safeY);
-
                     // Draw bounding box with enhanced styling
                     ctx.strokeStyle = metadata.color;
                     ctx.lineWidth = metadata.style.lineWidth;
-                    ctx.globalAlpha = opacity;
                     
                     if (metadata.style.lineDash.length > 0) {
                         ctx.setLineDash(metadata.style.lineDash);
@@ -1026,22 +1020,12 @@
                         ctx.setLineDash([]);
                     }
                     
-                    // Draw box with rounded corners and fill
-                    const radius = 5;
+                    // Draw box with exact dimensions
                     ctx.beginPath();
-                    ctx.moveTo(safeX + radius, safeY);
-                    ctx.lineTo(safeX + safeWidth - radius, safeY);
-                    ctx.quadraticCurveTo(safeX + safeWidth, safeY, safeX + safeWidth, safeY + radius);
-                    ctx.lineTo(safeX + safeWidth, safeY + safeHeight - radius);
-                    ctx.quadraticCurveTo(safeX + safeWidth, safeY + safeHeight, safeX + safeWidth - radius, safeY + safeHeight);
-                    ctx.lineTo(safeX + radius, safeY + safeHeight);
-                    ctx.quadraticCurveTo(safeX, safeY + safeHeight, safeX, safeY + safeHeight - radius);
-                    ctx.lineTo(safeX, safeY + radius);
-                    ctx.quadraticCurveTo(safeX, safeY, safeX + radius, safeY);
-                    ctx.closePath();
+                    ctx.rect(x, y, width, height);
                     
                     // Fill box with semi-transparent color
-                    ctx.fillStyle = `${metadata.color}66`; // 40% opacity
+                    ctx.fillStyle = `${metadata.color}99`; // 60% opacity
                     ctx.fill();
                     
                     // Draw border
@@ -1059,26 +1043,34 @@
                         metadata.description
                     ].filter(Boolean);
 
-                    ctx.font = '14px Arial';
+                    // Calculate label dimensions
+                    ctx.font = 'bold 14px Arial'; // Made font bold
                     const textMetrics = ctx.measureText(labelText[0]);
                     const labelWidth = Math.max(...labelText.map(text => ctx.measureText(text).width)) + 20;
                     const labelHeight = labelText.length * 20 + 10;
 
-                    // Determine if label should go on top or bottom
-                    const hasSpaceOnTop = safeY > labelHeight;
-                    const labelY = hasSpaceOnTop ? safeY - labelHeight : safeY + safeHeight;
-                    const labelX = Math.min(safeX, canvas.width - labelWidth);
+                    // Position label relative to box
+                    let labelX = x;
+                    let labelY = y - labelHeight - 5; // Position above box
 
-                    // Draw label background with rounded corners
-                    ctx.fillStyle = metadata.style.labelBg;
+                    // Adjust label position if it would go off screen
+                    if (labelY < 0) {
+                        labelY = y + height + 5; // Position below box
+                    }
+                    if (labelX + labelWidth > canvas.width) {
+                        labelX = canvas.width - labelWidth;
+                    }
+
+                    // Draw label background with enhanced contrast
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
                     ctx.beginPath();
                     ctx.roundRect(labelX, labelY, labelWidth, labelHeight, 5);
                     ctx.fill();
 
-                    // Draw label text with shadow
+                    // Draw label text with enhanced visibility
                     ctx.fillStyle = '#FFFFFF';
-                    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-                    ctx.shadowBlur = 2;
+                    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                    ctx.shadowBlur = 3;
                     ctx.shadowOffsetX = 1;
                     ctx.shadowOffsetY = 1;
                     
@@ -1088,148 +1080,55 @@
 
                     // Reset styles
                     ctx.shadowColor = 'transparent';
-                    ctx.globalAlpha = 1;
                     ctx.setLineDash([]);
                 });
             }, [detectColor, matchProduct]);
 
-            // Optimized detection loop with FPS control
+            // Update detection loop for precise tracking
             const detectObjects = React.useCallback(async () => {
-                const now = performance.now();
-                const elapsed = now - lastFrameTimeRef.current;
+                if (!videoRef.current || !detectionCanvasRef.current || !modelRef.current) return;
 
-                // Skip frame if we're running too fast
-                if (elapsed < frameInterval) {
-                    requestAnimationFrame(detectObjects);
-                    return;
-                }
+                const video = videoRef.current;
+                const canvas = detectionCanvasRef.current;
+                const ctx = canvas.getContext('2d');
 
-                if (!modelRef.current || !videoRef || !detectionContextRef.current || isTransitioning || isDetectingRef.current) {
-                    requestAnimationFrame(detectObjects);
-                    return;
-                }
+                if (!ctx) return;
 
                 try {
-                    isDetectingRef.current = true;
-                    lastFrameTimeRef.current = now;
+                    // Set canvas dimensions to match video
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
 
-                    // Scale down video frame for detection
-                    const ctx = detectionContextRef.current;
-                    const canvas = detectionCanvasRef.current;
+                    // Draw video frame
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                    // Run detection
+                    const predictions = await modelRef.current.detect(canvas);
                     
-                    if (!ctx || !canvas || !videoRef.videoWidth || !videoRef.videoHeight) {
-                        requestAnimationFrame(detectObjects);
-                        return;
-                    }
+                    // Filter predictions with strict bounds checking
+                    const validPredictions = predictions.filter(pred => 
+                        pred.score > 0.5 && 
+                        pred.bbox && 
+                        pred.bbox.length === 4 &&
+                        pred.bbox[0] >= 0 && 
+                        pred.bbox[1] >= 0 && 
+                        pred.bbox[2] > 0 && 
+                        pred.bbox[3] > 0 &&
+                        pred.bbox[0] + pred.bbox[2] <= canvas.width &&
+                        pred.bbox[1] + pred.bbox[3] <= canvas.height
+                    );
+
+                    // Track objects with precise coordinates
+                    const trackedDetections = trackObjects(validPredictions);
                     
-                    // Clear previous frame
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    
-                    // Calculate aspect ratio to maintain video proportions
-                    const videoAspectRatio = videoRef.videoWidth / videoRef.videoHeight;
-                    const canvasAspectRatio = canvas.width / canvas.height;
-                    
-                    let drawWidth = canvas.width;
-                    let drawHeight = canvas.height;
-                    let offsetX = 0;
-                    let offsetY = 0;
+                    // Update state and draw overlays
+                    setDetections(trackedDetections);
+                    drawOverlays(trackedDetections);
 
-                    if (videoAspectRatio > canvasAspectRatio) {
-                        drawHeight = canvas.width / videoAspectRatio;
-                        offsetY = (canvas.height - drawHeight) / 2;
-                    } else {
-                        drawWidth = canvas.height * videoAspectRatio;
-                        offsetX = (canvas.width - drawWidth) / 2;
-                    }
-
-                    // Draw scaled frame with error handling
-                    try {
-                        ctx.drawImage(
-                            videoRef,
-                            offsetX, offsetY,
-                            drawWidth, drawHeight
-                        );
-                    } catch (err) {
-                        console.warn('Error drawing video frame:', err);
-                        requestAnimationFrame(detectObjects);
-                        return;
-                    }
-
-                    // Run detection on scaled frame with timeout
-                    const startTime = performance.now();
-                    let predictions;
-                    try {
-                        predictions = await Promise.race([
-                            modelRef.current.detect(canvas),
-                            new Promise((_, reject) => 
-                                setTimeout(() => reject(new Error('Detection timeout')), 1000)
-                            )
-                        ]);
-                    } catch (err) {
-                        console.warn('Detection error or timeout:', err);
-                        requestAnimationFrame(detectObjects);
-                        return;
-                    }
-                    const inferenceTime = performance.now() - startTime;
-
-                    // Update FPS counter
-                    frameCountRef.current++;
-                    if (now - lastFpsUpdateRef.current >= 1000) {
-                        fpsRef.current = frameCountRef.current;
-                        frameCountRef.current = 0;
-                        lastFpsUpdateRef.current = now;
-                    }
-
-                    if (!predictions || !Array.isArray(predictions)) {
-                        requestAnimationFrame(detectObjects);
-                        return;
-                    }
-
-                    // Filter predictions with confidence threshold and bounds checking
-                    const liveDetections = predictions
-                        .filter(pred => {
-                            if (!pred || !pred.bbox || pred.bbox.length !== 4) return false;
-                            if (pred.score < 0.5) return false;
-                            
-                            // Check if bbox is within reasonable bounds
-                            const [x, y, width, height] = pred.bbox;
-                            return x >= 0 && y >= 0 && width > 0 && height > 0 &&
-                                   x + width <= videoRef.videoWidth &&
-                                   y + height <= videoRef.videoHeight;
-                        })
-                        .map(pred => {
-                            // Scale predictions back to original video size
-                            const scaleX = videoRef.videoWidth / canvas.width;
-                            const scaleY = videoRef.videoHeight / canvas.height;
-                            return {
-                                ...pred,
-                                bbox: [
-                                    pred.bbox[0] * scaleX,
-                                    pred.bbox[1] * scaleY,
-                                    pred.bbox[2] * scaleX,
-                                    pred.bbox[3] * scaleY
-                                ]
-                            };
-                        });
-
-                    // Update state with only live detections
-                    setDetections(liveDetections);
-
-                    // Draw overlays for live detections only
-                    drawOverlays(liveDetections);
-
-                    // Log performance metrics
-                    if (inferenceTime > frameInterval) {
-                        console.warn(`Frame dropped: Inference took ${inferenceTime.toFixed(2)}ms`);
-                    }
-
-                } catch (err) {
-                    console.error('Detection error:', err);
-                } finally {
-                    isDetectingRef.current = false;
-                    requestAnimationFrame(detectObjects);
+                } catch (error) {
+                    console.error('Detection error:', error);
                 }
-            }, [videoRef, isTransitioning, drawOverlays]);
+            }, [drawOverlays, trackObjects]);
 
             // Initialize detection loop with performance monitoring and cleanup
             React.useEffect(() => {
