@@ -13,7 +13,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- TensorFlow.js -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/efficientdet@1.0.0/dist/efficientdet.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -398,7 +398,7 @@
                 'React': typeof React !== 'undefined',
                 'ReactDOM': typeof ReactDOM !== 'undefined',
                 'TensorFlow.js': typeof tf !== 'undefined',
-                'EfficientDet': typeof efficientdet !== 'undefined'
+                'COCO-SSD': typeof cocoSsd !== 'undefined'
             };
 
             const missing = Object.entries(dependencies)
@@ -584,7 +584,6 @@
 
                 try {
                     isDetectingRef.current = true;
-                    console.log('Starting detection...');
 
                     // Scale down video frame for detection
                     const ctx = detectionContextRef.current;
@@ -615,16 +614,12 @@
                     );
 
                     // Run detection on scaled frame
-                    console.log('Running model detection...');
                     const predictions = await modelRef.current.detect(canvas);
-                    console.log('Raw predictions:', predictions);
 
                     // Filter and process predictions
                     const filteredPredictions = predictions
                         .filter(pred => {
                             const minConfidence = TARGET_CLASSES[pred.class] || 0.5;
-                            const isTargetClass = Object.keys(TARGET_CLASSES).includes(pred.class);
-                            console.log(`Class: ${pred.class}, Score: ${pred.score}, MinConfidence: ${minConfidence}, IsTarget: ${isTargetClass}`);
                             return pred.score >= minConfidence;
                         })
                         .map(pred => {
@@ -642,11 +637,8 @@
                             };
                         });
 
-                    console.log('Filtered predictions:', filteredPredictions);
-
                     // Track objects and update state
                     const trackedObjects = trackObjects(filteredPredictions);
-                    console.log('Tracked objects:', trackedObjects);
                     setDetections(trackedObjects);
                     previousDetectionsRef.current = trackedObjects;
 
@@ -656,32 +648,6 @@
                     isDetectingRef.current = false;
                 }
             }, [videoRef, isTransitioning]);
-
-            // Optimized rendering loop
-            React.useEffect(() => {
-                let animationFrameId;
-                let lastDetectionTime = 0;
-                const detectionInterval = 1000 / 30; // Target 30 FPS for detection
-
-                const renderLoop = (timestamp) => {
-                    if (timestamp - lastDetectionTime >= detectionInterval) {
-                        detectObjects();
-                        lastDetectionTime = timestamp;
-                    }
-                    animationFrameId = requestAnimationFrame(renderLoop);
-                };
-
-                if (!isModelLoading && !error) {
-                    console.log('Starting detection loop...');
-                    animationFrameId = requestAnimationFrame(renderLoop);
-                }
-
-                return () => {
-                    if (animationFrameId) {
-                        cancelAnimationFrame(animationFrameId);
-                    }
-                };
-            }, [isModelLoading, error, detectObjects]);
 
             // FPS counter
             React.useEffect(() => {
@@ -720,7 +686,7 @@
                 detectionContextRef.current = canvas.getContext('2d');
             }, []);
 
-            // Load the EfficientDet model
+            // Load the COCO-SSD model
             React.useEffect(() => {
                 const loadModel = async () => {
                     try {
@@ -735,13 +701,10 @@
                         updateLoadingStep('tf', 'completed');
                         updateLoadingStep('model', 'active');
                         
-                        // Load the EfficientDet model
+                        // Load the COCO-SSD model
                         setLoadingStep('Loading AI model...');
-                        const model = await efficientdet.load({
-                            model: 'efficientdet-d0',
-                            score: 0.3,
-                            iou: 0.5,
-                            maxBoxes: 20
+                        const model = await cocoSsd.load({
+                            base: 'lite_mobilenet_v2'
                         });
                         
                         setLoadingProgress(70);
@@ -840,10 +803,6 @@
                 React.createElement('div', {
                     className: 'fixed top-4 left-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm'
                 }, `${fps} FPS`),
-                // Detection Status
-                React.createElement('div', {
-                    className: 'fixed top-4 right-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm'
-                }, `Detections: ${detections.length}`),
                 // Camera Switch Button
                 React.createElement('button', {
                     onClick: handleCameraSwitch,
@@ -862,30 +821,14 @@
                             top: `${detection.lastBbox[1]}px`,
                             width: `${detection.lastBbox[2]}px`,
                             height: `${detection.lastBbox[3]}px`,
-                            borderColor: detection.age > 10 ? '#2ecc71' : '#3498db',
-                            position: 'absolute',
-                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                            color: 'white',
-                            padding: '8px',
-                            borderRadius: '8px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            transition: 'all 0.3s ease',
-                            border: '2px solid #fff',
-                            zIndex: 1000
+                            borderColor: detection.age > 10 ? '#2ecc71' : '#3498db'
                         }
                     },
                         React.createElement('div', { className: 'flex items-center gap-2' },
                             brand && React.createElement('img', {
                                 src: brandLogos[brand],
                                 alt: brand,
-                                className: 'brand-logo',
-                                style: {
-                                    width: '24px',
-                                    height: '24px',
-                                    objectFit: 'contain'
-                                }
+                                className: 'brand-logo'
                             }),
                             React.createElement('span', null, `${detection.class} (${Math.round(detection.confidence * 100)}%)`),
                             React.createElement('a', {
