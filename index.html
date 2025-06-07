@@ -462,7 +462,6 @@
                 { id: 'camera', text: 'Setting up camera...', status: 'pending' },
                 { id: 'ready', text: 'Ready to detect!', status: 'pending' }
             ]);
-            const [showToast, setShowToast] = React.useState(false);
             const [error, setError] = React.useState(null);
             const [isFrontCamera, setIsFrontCamera] = React.useState(true);
             const [videoRef, setVideoRef] = React.useState(initialVideoRef);
@@ -805,171 +804,110 @@
 
             // Optimized detection loop with FPS control
             const detectObjects = React.useCallback(async () => {
-                const now = performance.now();
-                const elapsed = now - lastFrameTimeRef.current;
+                if (!videoRef.current || !detectionCanvasRef.current || !overlayCanvasRef.current) return;
+                
+                const video = videoRef.current;
+                const detectionCanvas = detectionCanvasRef.current;
+                const overlayCanvas = overlayCanvasRef.current;
+                const ctx = detectionCanvas.getContext('2d');
+                const overlayCtx = overlayCanvas.getContext('2d');
+                
+                if (!ctx || !overlayCtx) return;
 
-                // Skip frame if we're running too fast
-                if (elapsed < frameInterval) {
-                    requestAnimationFrame(detectObjects);
-                    return;
-                }
+                // Update canvas dimensions to match video
+                const videoWidth = video.videoWidth;
+                const videoHeight = video.videoHeight;
+                
+                if (videoWidth === 0 || videoHeight === 0) return;
 
-                if (!modelRef.current || !videoRef || !detectionContextRef.current || isTransitioning || isDetectingRef.current) {
-                    requestAnimationFrame(detectObjects);
-                    return;
-                }
+                // Set canvas dimensions to match video
+                detectionCanvas.width = videoWidth;
+                detectionCanvas.height = videoHeight;
+                overlayCanvas.width = videoWidth;
+                overlayCanvas.height = videoHeight;
 
                 try {
-                    isDetectingRef.current = true;
-                    lastFrameTimeRef.current = now;
-
-                    // Scale down video frame for detection
-                    const ctx = detectionContextRef.current;
-                    const canvas = detectionCanvasRef.current;
+                    // Draw video frame to detection canvas
+                    ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
                     
-                    if (!ctx || !canvas || !videoRef.videoWidth || !videoRef.videoHeight) {
-                        requestAnimationFrame(detectObjects);
-                        return;
-                    }
+                    // Run detection
+                    const predictions = await modelRef.current.detect(detectionCanvas);
                     
-                    // Clear previous frame
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    
-                    // Calculate aspect ratio to maintain video proportions
-                    const videoAspectRatio = videoRef.videoWidth / videoRef.videoHeight;
-                    const canvasAspectRatio = canvas.width / canvas.height;
-                    
-                    let drawWidth = canvas.width;
-                    let drawHeight = canvas.height;
-                    let offsetX = 0;
-                    let offsetY = 0;
-
-                    if (videoAspectRatio > canvasAspectRatio) {
-                        drawHeight = canvas.width / videoAspectRatio;
-                        offsetY = (canvas.height - drawHeight) / 2;
-                    } else {
-                        drawWidth = canvas.height * videoAspectRatio;
-                        offsetX = (canvas.width - drawWidth) / 2;
-                    }
-
-                    // Draw scaled frame with error handling
-                    try {
-                        ctx.drawImage(
-                            videoRef,
-                            offsetX, offsetY,
-                            drawWidth, drawHeight
-                        );
-                    } catch (err) {
-                        console.warn('Error drawing video frame:', err);
-                        requestAnimationFrame(detectObjects);
-                        return;
-                    }
-
-                    // Run detection on scaled frame with timeout
-                    const startTime = performance.now();
-                    let predictions;
-                    try {
-                        predictions = await Promise.race([
-                            modelRef.current.detect(canvas),
-                            new Promise((_, reject) => 
-                                setTimeout(() => reject(new Error('Detection timeout')), 1000)
-                            )
-                        ]);
-                    } catch (err) {
-                        console.warn('Detection error or timeout:', err);
-                        requestAnimationFrame(detectObjects);
-                        return;
-                    }
-                    const inferenceTime = performance.now() - startTime;
-
-                    // Update FPS counter
-                    frameCountRef.current++;
-                    if (now - lastFpsUpdateRef.current >= 1000) {
-                        fpsRef.current = frameCountRef.current;
-                        frameCountRef.current = 0;
-                        lastFpsUpdateRef.current = now;
-                    }
-
-                    if (!predictions || !Array.isArray(predictions)) {
-                        requestAnimationFrame(detectObjects);
-                        return;
-                    }
-
                     // Filter predictions with confidence threshold and bounds checking
-                    const liveDetections = predictions
-                        .filter(pred => {
-                            if (!pred || !pred.bbox || pred.bbox.length !== 4) return false;
-                            if (pred.score < 0.5) return false;
-                            
-                            // Check if bbox is within reasonable bounds
-                            const [x, y, width, height] = pred.bbox;
-                            return x >= 0 && y >= 0 && width > 0 && height > 0 &&
-                                   x + width <= videoRef.videoWidth &&
-                                   y + height <= videoRef.videoHeight;
-                        })
-                        .map(pred => {
-                            // Scale predictions back to original video size
-                            const scaleX = videoRef.videoWidth / canvas.width;
-                            const scaleY = videoRef.videoHeight / canvas.height;
-                            return {
-                                ...pred,
-                                bbox: [
-                                    pred.bbox[0] * scaleX,
-                                    pred.bbox[1] * scaleY,
-                                    pred.bbox[2] * scaleX,
-                                    pred.bbox[3] * scaleY
-                                ]
-                            };
-                        });
+                    const validPredictions = predictions.filter(pred => {
+                        const confidence = pred.score;
+                        const [x, y, width, height] = pred.bbox;
+                        
+                        // Check confidence threshold
+                        if (confidence < 0.5) return false;
+                        
+                        // Validate bounding box coordinates
+                        if (x < 0 || y < 0 || width <= 0 || height <= 0) return false;
+                        if (x + width > videoWidth || y + height > videoHeight) return false;
+                        
+                        return true;
+                    });
 
-                    // Update state with only live detections
-                    setDetections(liveDetections);
+                    // Update state with only valid detections
+                    setDetections(validPredictions);
 
-                    // Draw overlays for live detections only
-                    drawOverlays(liveDetections);
+                    // Clear overlay canvas
+                    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
-                    // Log performance metrics
-                    if (inferenceTime > frameInterval) {
-                        console.warn(`Frame dropped: Inference took ${inferenceTime.toFixed(2)}ms`);
-                    }
+                    // Draw boxes for current detections
+                    validPredictions.forEach(prediction => {
+                        const [x, y, width, height] = prediction.bbox;
+                        const className = prediction.class;
+                        const confidence = prediction.score;
+                        
+                        // Get metadata for this class
+                        const metadata = mockProductData[className] || {
+                            title: className,
+                            color: '#00ff00',
+                            lineWidth: 2
+                        };
 
-                } catch (err) {
-                    console.error('Detection error:', err);
-                } finally {
-                    isDetectingRef.current = false;
+                        // Draw bounding box
+                        overlayCtx.strokeStyle = metadata.color;
+                        overlayCtx.lineWidth = metadata.lineWidth;
+                        overlayCtx.strokeRect(x, y, width, height);
+
+                        // Draw label background
+                        const labelText = `${metadata.title} (${Math.round(confidence * 100)}%)`;
+                        overlayCtx.font = '16px Arial';
+                        const labelWidth = overlayCtx.measureText(labelText).width;
+                        const labelHeight = 20;
+                        const labelX = Math.max(0, Math.min(x, videoWidth - labelWidth));
+                        const labelY = Math.max(labelHeight, y);
+
+                        overlayCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                        overlayCtx.fillRect(labelX, labelY - labelHeight, labelWidth, labelHeight);
+
+                        // Draw label text
+                        overlayCtx.fillStyle = '#ffffff';
+                        overlayCtx.fillText(labelText, labelX, labelY - 5);
+                    });
+
+                } catch (error) {
+                    console.error('Detection error:', error);
+                    setError('Detection error: ' + error.message);
+                }
+
+                // Schedule next frame
+                if (isActive) {
                     requestAnimationFrame(detectObjects);
                 }
-            }, [videoRef, isTransitioning, drawOverlays]);
+            }, [modelRef, isActive]);
 
-            // Initialize detection loop with performance monitoring and cleanup
+            // Start detection loop
             React.useEffect(() => {
-                let animationFrameId;
-                let lastTime = performance.now();
-                let isActive = true;
-
-                const startDetection = () => {
-                    if (!isActive) return;
-                    
-                    const now = performance.now();
-                    const elapsed = now - lastTime;
-
-                    if (elapsed >= frameInterval) {
-                        lastTime = now;
-                        animationFrameId = requestAnimationFrame(detectObjects);
-                    } else {
-                        animationFrameId = requestAnimationFrame(startDetection);
-                    }
-                };
-
-                startDetection();
-
+                if (modelRef.current && !isModelLoading) {
+                    detectObjects();
+                }
                 return () => {
                     isActive = false;
-                    if (animationFrameId) {
-                        cancelAnimationFrame(animationFrameId);
-                    }
                 };
-            }, [detectObjects]);
+            }, [modelRef, isModelLoading, detectObjects]);
 
             // Update FPS display
             React.useEffect(() => {
@@ -1046,23 +984,6 @@
                 loadModel();
             }, []);
 
-            const handleShare = () => {
-                try {
-                    const items = detections
-                        .filter(det => ['person', 'backpack', 'handbag', 'suitcase', 'bottle', 'wine glass', 'cup', 'bowl', 'chair', 'couch', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'].includes(det.class))
-                        .map(det => det.class);
-                    
-                    const text = `Today's Fit: ${items.join(', ')}`;
-                    navigator.clipboard.writeText(text);
-                    setShowToast(true);
-                    setTimeout(() => setShowToast(false), 2000);
-                } catch (err) {
-                    const errorMsg = 'Share error: ' + err.message;
-                    debugLog(errorMsg);
-                    setError(errorMsg);
-                }
-            };
-
             // Fix camera switching
             const handleCameraSwitch = React.useCallback(async () => {
                 if (isTransitioning) return;
@@ -1073,11 +994,11 @@
                     setLoadingProgress(50);
 
                     // Stop all tracks and clear video source
-                    if (videoRef.srcObject) {
-                        videoRef.srcObject.getTracks().forEach(track => {
+                    if (videoRef.current.srcObject) {
+                        videoRef.current.srcObject.getTracks().forEach(track => {
                             track.stop();
                         });
-                        videoRef.srcObject = null;
+                        videoRef.current.srcObject = null;
                     }
 
                     // Clear detection state
@@ -1097,10 +1018,10 @@
                     });
 
                     // Update video source and wait for it to be ready
-                    videoRef.srcObject = stream;
+                    videoRef.current.srcObject = stream;
                     await new Promise((resolve) => {
-                        videoRef.onloadedmetadata = () => {
-                            videoRef.play().then(resolve);
+                        videoRef.current.onloadedmetadata = () => {
+                            videoRef.current.play().then(resolve);
                         };
                     });
 
@@ -1142,10 +1063,10 @@
                     });
 
                     if (videoRef) {
-                        videoRef.srcObject = stream;
+                        videoRef.current.srcObject = stream;
                         await new Promise((resolve) => {
-                            videoRef.onloadedmetadata = () => {
-                                videoRef.play().then(resolve);
+                            videoRef.current.onloadedmetadata = () => {
+                                videoRef.current.play().then(resolve);
                             };
                         });
                         setLoadingProgress(40);
@@ -1216,11 +1137,6 @@
                     title: `Switch to ${isFrontCamera ? 'back' : 'front'} camera`,
                     disabled: isTransitioning
                 }, '📷'),
-                // Share Button
-                React.createElement('button', {
-                    onClick: handleShare,
-                    className: 'fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-full shadow-lg transition-all duration-200'
-                }, 'Share My Fit'),
                 // Loading Indicator
                 isModelLoading && React.createElement('div', { className: 'loading-container' },
                     React.createElement('div', { className: 'loading-spinner' }),
@@ -1239,11 +1155,7 @@
                             }, step.text)
                         )
                     )
-                ),
-                // Toast Message
-                showToast && React.createElement('div', {
-                    className: 'fixed top-8 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded shadow-lg transition-all duration-200'
-                }, 'Outfit copied to clipboard!')
+                )
             );
         };
 
