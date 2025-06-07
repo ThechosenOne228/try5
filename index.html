@@ -844,119 +844,38 @@
                 return Array.from(currentTracks.values());
             }, []);
 
-            // Initialize canvases and handle window resize
+            // Initialize detection and overlay canvases
             React.useEffect(() => {
-                const initCanvases = () => {
-                    // Initialize detection canvas
-                    const detectionCanvas = detectionCanvasRef.current;
-                    if (detectionCanvas) {
-                        detectionCanvas.width = 640;
-                        detectionCanvas.height = 480;
-                        detectionCanvas.style.display = 'none'; // Hide detection canvas
-                        const detectionCtx = detectionCanvas.getContext('2d');
-                        if (detectionCtx) {
-                            detectionContextRef.current = detectionCtx;
-                        }
-                    }
-
-                    // Initialize overlay canvas
-                    const overlayCanvas = overlayCanvasRef.current;
-                    if (overlayCanvas) {
-                        overlayCanvas.width = window.innerWidth;
-                        overlayCanvas.height = window.innerHeight;
-                        overlayCanvas.style.position = 'fixed';
-                        overlayCanvas.style.top = '0';
-                        overlayCanvas.style.left = '0';
-                        overlayCanvas.style.pointerEvents = 'none';
-                        overlayCanvas.style.zIndex = '1000';
-                        const overlayCtx = overlayCanvas.getContext('2d');
-                        if (overlayCtx) {
-                            overlayContextRef.current = overlayCtx;
-                        }
-                    }
-                };
-
-                initCanvases();
-                window.addEventListener('resize', initCanvases);
-                return () => window.removeEventListener('resize', initCanvases);
-            }, []);
-
-            // Product database for matching
-            const productDatabase = {
-                'shirt': [
-                    {
-                        name: 'Nike Club Fleece',
-                        price: '$69.99',
-                        description: 'Red hoodie with brushed fleece interior',
-                        attributes: {
-                            color: 'red',
-                            material: 'fleece',
-                            style: 'casual'
-                        }
-                    },
-                    {
-                        name: 'Adidas Tiro',
-                        price: '$49.99',
-                        description: 'Black training top with moisture-wicking fabric',
-                        attributes: {
-                            color: 'black',
-                            material: 'polyester',
-                            style: 'sport'
-                        }
-                    }
-                ],
-                't-shirt': [
-                    {
-                        name: 'Uniqlo Airism',
-                        price: '$19.90',
-                        description: 'White breathable t-shirt with quick-dry technology',
-                        attributes: {
-                            color: 'white',
-                            material: 'cotton',
-                            style: 'casual'
-                        }
-                    }
-                ],
-                'pants': [
-                    {
-                        name: 'Lululemon ABC',
-                        price: '$128.00',
-                        description: 'Black slim-fit pants with stretch fabric',
-                        attributes: {
-                            color: 'black',
-                            material: 'stretch',
-                            style: 'casual'
-                        }
-                    }
-                ],
-                'sneakers': [
-                    {
-                        name: 'Nike Air Force 1',
-                        price: '$100.00',
-                        description: 'White classic sneakers with air cushioning',
-                        attributes: {
-                            color: 'white',
-                            material: 'leather',
-                            style: 'casual'
-                        }
-                    }
-                ]
-            };
-
-            // Match detected item with product database
-            const matchProduct = React.useCallback((detection, detectedColor) => {
-                const category = detection.class;
-                const products = productDatabase[category] || [];
+                const detectionCanvas = detectionCanvasRef.current;
+                const overlayCanvas = overlayCanvasRef.current;
                 
-                // Find best matching product based on color and attributes
-                const bestMatch = products.find(product => 
-                    product.attributes.color === detectedColor
-                ) || products[0]; // Fallback to first product if no color match
-
-                return bestMatch;
+                if (detectionCanvas && overlayCanvas) {
+                    // Set detection canvas to model input size
+                    detectionCanvas.width = 640;
+                    detectionCanvas.height = 640;
+                    detectionCanvas.style.display = 'none'; // Hide detection canvas
+                    
+                    // Set overlay canvas to match video size
+                    overlayCanvas.width = 640;
+                    overlayCanvas.height = 480;
+                    overlayCanvas.style.position = 'absolute';
+                    overlayCanvas.style.top = '0';
+                    overlayCanvas.style.left = '0';
+                    overlayCanvas.style.pointerEvents = 'none';
+                    overlayCanvas.style.zIndex = '1000';
+                    
+                    // Initialize contexts
+                    const detectionCtx = detectionCanvas.getContext('2d');
+                    const overlayCtx = overlayCanvas.getContext('2d');
+                    
+                    if (detectionCtx && overlayCtx) {
+                        detectionContextRef.current = detectionCtx;
+                        overlayContextRef.current = overlayCtx;
+                    }
+                }
             }, []);
 
-            // Draw detection overlays with precise scaling and visibility
+            // Draw detection overlays with enhanced visibility
             const drawOverlays = React.useCallback((detections) => {
                 if (!overlayContextRef.current || !detections) return;
 
@@ -991,10 +910,10 @@
                     const metadata = mockProductData[detection.class] || {
                         title: detection.class,
                         description: 'Object detected',
-                        color: '#FFFFFF',
+                        color: '#FF0000', // Default to red if no color specified
                         brand: detection.class,
                         style: {
-                            lineWidth: 3,
+                            lineWidth: 4, // Increased line width
                             lineDash: [],
                             labelBg: 'rgba(0, 0, 0, 0.8)'
                         }
@@ -1009,28 +928,23 @@
                     // Match with product database
                     const matchedProduct = matchProduct(detection, detectedColor);
 
-                    // Draw bounding box with enhanced styling
+                    // Draw bounding box with enhanced visibility
                     ctx.strokeStyle = metadata.color;
                     ctx.lineWidth = metadata.style.lineWidth;
+                    ctx.setLineDash([]);
                     
-                    if (metadata.style.lineDash.length > 0) {
-                        ctx.setLineDash(metadata.style.lineDash);
-                    } else {
-                        ctx.setLineDash([]);
-                    }
-                    
-                    // Draw box with exact dimensions
+                    // Draw box with exact dimensions and fill
                     ctx.beginPath();
                     ctx.rect(x, y, width, height);
                     
                     // Fill box with semi-transparent color
-                    ctx.fillStyle = `${metadata.color}99`; // 60% opacity
+                    ctx.fillStyle = `${metadata.color}40`; // 25% opacity
                     ctx.fill();
                     
-                    // Draw border
+                    // Draw border with enhanced visibility
                     ctx.stroke();
 
-                    // Draw label with enhanced styling
+                    // Draw label with enhanced visibility
                     const labelText = [
                         matchedProduct ? matchedProduct.name : metadata.brand,
                         matchedProduct ? matchedProduct.price : '',
@@ -1049,18 +963,18 @@
 
                     // Position label relative to box
                     let labelX = x;
-                    let labelY = y - labelHeight - 5; // Position above box
+                    let labelY = y - labelHeight - 5;
 
                     // Adjust label position if it would go off screen
                     if (labelY < 0) {
-                        labelY = y + height + 5; // Position below box
+                        labelY = y + height + 5;
                     }
                     if (labelX + labelWidth > canvas.width) {
                         labelX = canvas.width - labelWidth;
                     }
 
                     // Draw label background with enhanced contrast
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
                     ctx.beginPath();
                     ctx.roundRect(labelX, labelY, labelWidth, labelHeight, 5);
                     ctx.fill();
