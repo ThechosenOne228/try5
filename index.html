@@ -82,52 +82,6 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        .loading-container {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 30px;
-            border-radius: 12px;
-            text-align: center;
-            z-index: 1000;
-            min-width: 300px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .loading-progress {
-            width: 100%;
-            height: 6px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 3px;
-            margin: 15px 0;
-            overflow: hidden;
-        }
-        .loading-progress-bar {
-            height: 100%;
-            background: #3498db;
-            border-radius: 3px;
-            transition: width 0.3s ease;
-        }
-        .loading-steps {
-            text-align: left;
-            margin-top: 15px;
-            font-size: 14px;
-        }
-        .loading-step {
-            margin: 8px 0;
-            opacity: 0.5;
-            transition: opacity 0.3s ease;
-        }
-        .loading-step.active {
-            opacity: 1;
-            color: #3498db;
-        }
-        .loading-step.completed {
-            opacity: 0.7;
-            color: #2ecc71;
-        }
         .camera-switch {
             position: fixed;
             top: 20px;
@@ -218,11 +172,6 @@
             'brooks': 'https://upload.wikimedia.org/wikipedia/commons/8/8a/Brooks_logo.svg',
             'saucony': 'https://upload.wikimedia.org/wikipedia/commons/7/7c/Saucony_logo.svg',
             'skechers': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Skechers_logo.svg',
-            'lululemon': 'https://upload.wikimedia.org/wikipedia/commons/3/3c/Lululemon_logo.svg',
-            'athleta': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Athleta_logo.svg',
-            'gymshark': 'https://upload.wikimedia.org/wikipedia/commons/8/8d/Gymshark_logo.svg',
-            'alphalete': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Alphalete_logo.svg',
-            'nobull': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/NoBull_logo.svg',
 
             // Luxury
             'gucci': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Gucci_logo.svg',
@@ -240,11 +189,6 @@
             'bottega veneta': 'https://upload.wikimedia.org/wikipedia/commons/5/5a/Bottega_Veneta_logo.svg',
             'valentino': 'https://upload.wikimedia.org/wikipedia/commons/9/9a/Valentino_logo.svg',
             'dolce & gabbana': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Dolce_%26_Gabbana_logo.svg',
-            'alexander mcqueen': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Alexander_McQueen_logo.svg',
-            'balmain': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Balmain_logo.svg',
-            'celine': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Celine_logo.svg',
-            'loewe': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Loewe_logo.svg',
-            'marni': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Marni_logo.svg',
 
             // Streetwear & Fashion
             'supreme': 'https://upload.wikimedia.org/wikipedia/commons/2/28/Supreme_logo.svg',
@@ -257,11 +201,6 @@
             'yeezy': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Yeezy_logo.svg',
             'stone island': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Stone_Island_logo.svg',
             'moncler': 'https://upload.wikimedia.org/wikipedia/commons/4/4c/Moncler_logo.svg',
-            'acne studios': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Acne_Studios_logo.svg',
-            'alyx': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Alyx_logo.svg',
-            'ambush': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Ambush_logo.svg',
-            'heron preston': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Heron_Preston_logo.svg',
-            'martine rose': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Martine_Rose_logo.svg',
 
             // Fast Fashion
             'zara': 'https://upload.wikimedia.org/wikipedia/commons/5/53/Zara_logo.svg',
@@ -274,11 +213,6 @@
             'missguided': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Missguided_logo.svg',
             'pretty little thing': 'https://upload.wikimedia.org/wikipedia/commons/5/5a/PrettyLittleThing_logo.svg',
             'nasty gal': 'https://upload.wikimedia.org/wikipedia/commons/8/8d/Nasty_Gal_logo.svg',
-            'fashion nova': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Fashion_Nova_logo.svg',
-            'revolve': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Revolve_logo.svg',
-            'nordstrom': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Nordstrom_logo.svg',
-            'urban outfitters': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Urban_Outfitters_logo.svg',
-            'anthropologie': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Anthropologie_logo.svg',
 
             // Denim & Casual
             'levi\'s': 'https://upload.wikimedia.org/wikipedia/commons/2/21/Levi%27s_logo.svg',
@@ -291,11 +225,6 @@
             'diesel': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Diesel_logo.svg',
             'guess': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Guess_logo.svg',
             'hollister': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Hollister_logo.svg',
-            'abercrombie': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Abercrombie_logo.svg',
-            'american eagle': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/American_Eagle_logo.svg',
-            'banana republic': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Banana_Republic_logo.svg',
-            'j.crew': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/J.Crew_logo.svg',
-            'madewell': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Madewell_logo.svg',
 
             // Accessories
             'ray-ban': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Ray-Ban_logo.svg',
@@ -307,63 +236,7 @@
             'coach': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Coach_logo.svg',
             'tory burch': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Tory_Burch_logo.svg',
             'longchamp': 'https://upload.wikimedia.org/wikipedia/commons/5/5c/Longchamp_logo.svg',
-            'furla': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Furla_logo.svg',
-            'marc jacobs': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Marc_Jacobs_logo.svg',
-            'rebecca minkoff': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Rebecca_Minkoff_logo.svg',
-            'dooney & bourke': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Dooney_%26_Bourke_logo.svg',
-            'tumi': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Tumi_logo.svg',
-            'samsonite': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Samsonite_logo.svg',
-
-            // Watches
-            'rolex': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Rolex_logo.svg',
-            'omega': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Omega_logo.svg',
-            'cartier': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Cartier_logo.svg',
-            'tag heuer': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Tag_Heuer_logo.svg',
-            'breitling': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Breitling_logo.svg',
-            'iwc': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/IWC_logo.svg',
-            'jaeger-lecoultre': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Jaeger-LeCoultre_logo.svg',
-            'panerai': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Panerai_logo.svg',
-            'hublot': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Hublot_logo.svg',
-            'audemars piguet': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Audemars_Piguet_logo.svg',
-            'patek philippe': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Patek_Philippe_logo.svg',
-            'vacheron constantin': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Vacheron_Constantin_logo.svg',
-            'breguet': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Breguet_logo.svg',
-            'zenith': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Zenith_logo.svg',
-            'tissot': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Tissot_logo.svg',
-
-            // Jewelry
-            'tiffany & co': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Tiffany_%26_Co_logo.svg',
-            'cartier': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Cartier_logo.svg',
-            'bulgari': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Bulgari_logo.svg',
-            'van cleef & arpels': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Van_Cleef_%26_Arpels_logo.svg',
-            'david yurman': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/David_Yurman_logo.svg',
-            'pandora': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Pandora_logo.svg',
-            'swarovski': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Swarovski_logo.svg',
-            'kendra scott': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Kendra_Scott_logo.svg',
-            'gorjana': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Gorjana_logo.svg',
-            'alex and ani': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Alex_and_Ani_logo.svg',
-            'james avery': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/James_Avery_logo.svg',
-            'john hardy': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/John_Hardy_logo.svg',
-            'monica vinader': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Monica_Vinader_logo.svg',
-            'mejuri': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Mejuri_logo.svg',
-            'catbird': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Catbird_logo.svg',
-
-            // Footwear
-            'dr. martens': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Dr._Martens_logo.svg',
-            'timberland': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Timberland_logo.svg',
-            'clarks': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Clarks_logo.svg',
-            'ugg': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/UGG_logo.svg',
-            'birkenstock': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Birkenstock_logo.svg',
-            'crocs': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Crocs_logo.svg',
-            'teva': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Teva_logo.svg',
-            'merrell': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Merrell_logo.svg',
-            'keen': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/KEEN_logo.svg',
-            'salomon': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Salomon_logo.svg',
-            'hoka': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Hoka_logo.svg',
-            'on running': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/On_Running_logo.svg',
-            'allbirds': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Allbirds_logo.svg',
-            'veja': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Veja_logo.svg',
-            'common projects': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Common_Projects_logo.svg'
+            'furla': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Furla_logo.svg'
         };
 
         // Function to detect brand from class name
@@ -453,211 +326,13 @@
         const App = ({ initialVideoRef }) => {
             const [detections, setDetections] = React.useState([]);
             const [isModelLoading, setIsModelLoading] = React.useState(true);
-            const [loadingProgress, setLoadingProgress] = React.useState(0);
-            const [loadingStep, setLoadingStep] = React.useState('Initializing...');
-            const [loadingSteps, setLoadingSteps] = React.useState([
-                { id: 'init', text: 'Initializing application...', status: 'active' },
-                { id: 'tf', text: 'Loading TensorFlow.js...', status: 'pending' },
-                { id: 'model', text: 'Loading AI model...', status: 'pending' },
-                { id: 'camera', text: 'Setting up camera...', status: 'pending' },
-                { id: 'ready', text: 'Ready to detect!', status: 'pending' }
-            ]);
+            const [loadingProgress, setLoadingProgress] = React.useState('Initializing...');
             const [showToast, setShowToast] = React.useState(false);
             const [error, setError] = React.useState(null);
             const [isFrontCamera, setIsFrontCamera] = React.useState(true);
             const [videoRef, setVideoRef] = React.useState(initialVideoRef);
             const [isTransitioning, setIsTransitioning] = React.useState(false);
-            const [fps, setFps] = React.useState(0);
             const modelRef = React.useRef(null);
-            const frameCountRef = React.useRef(0);
-            const lastTimeRef = React.useRef(performance.now());
-            const detectionCanvasRef = React.useRef(null);
-            const detectionContextRef = React.useRef(null);
-            const isDetectingRef = React.useRef(false);
-
-            // Initialize detection canvas
-            React.useEffect(() => {
-                const canvas = document.createElement('canvas');
-                canvas.width = 640; // Reduced resolution for detection
-                canvas.height = 480;
-                detectionCanvasRef.current = canvas;
-                detectionContextRef.current = canvas.getContext('2d');
-            }, []);
-
-            // FPS counter
-            React.useEffect(() => {
-                const updateFPS = () => {
-                    const now = performance.now();
-                    const elapsed = now - lastTimeRef.current;
-                    frameCountRef.current++;
-
-                    if (elapsed >= 1000) {
-                        setFps(Math.round((frameCountRef.current * 1000) / elapsed));
-                        frameCountRef.current = 0;
-                        lastTimeRef.current = now;
-                    }
-                    requestAnimationFrame(updateFPS);
-                };
-                requestAnimationFrame(updateFPS);
-            }, []);
-
-            // Optimized detection loop
-            const detectObjects = React.useCallback(async () => {
-                if (!modelRef.current || !videoRef || !detectionContextRef.current || isTransitioning || isDetectingRef.current) {
-                    return;
-                }
-
-                try {
-                    isDetectingRef.current = true;
-
-                    // Scale down video frame for detection
-                    const ctx = detectionContextRef.current;
-                    const canvas = detectionCanvasRef.current;
-                    
-                    // Calculate aspect ratio to maintain video proportions
-                    const videoAspectRatio = videoRef.videoWidth / videoRef.videoHeight;
-                    const canvasAspectRatio = canvas.width / canvas.height;
-                    
-                    let drawWidth = canvas.width;
-                    let drawHeight = canvas.height;
-                    let offsetX = 0;
-                    let offsetY = 0;
-
-                    if (videoAspectRatio > canvasAspectRatio) {
-                        drawHeight = canvas.width / videoAspectRatio;
-                        offsetY = (canvas.height - drawHeight) / 2;
-                    } else {
-                        drawWidth = canvas.height * videoAspectRatio;
-                        offsetX = (canvas.width - drawWidth) / 2;
-                    }
-
-                    // Draw scaled frame
-                    ctx.drawImage(
-                        videoRef,
-                        offsetX, offsetY,
-                        drawWidth, drawHeight
-                    );
-
-                    // Run detection on scaled frame
-                    const predictions = await modelRef.current.detect(canvas);
-
-                    // Scale predictions back to original video size
-                    const scaleX = videoRef.videoWidth / canvas.width;
-                    const scaleY = videoRef.videoHeight / canvas.height;
-
-                    const scaledPredictions = predictions.map(pred => ({
-                        ...pred,
-                        bbox: [
-                            pred.bbox[0] * scaleX,
-                            pred.bbox[1] * scaleY,
-                            pred.bbox[2] * scaleX,
-                            pred.bbox[3] * scaleY
-                        ]
-                    }));
-
-                    setDetections(scaledPredictions);
-                } catch (err) {
-                    console.error('Detection error:', err);
-                } finally {
-                    isDetectingRef.current = false;
-                }
-            }, [videoRef, isTransitioning]);
-
-            // Optimized rendering loop
-            React.useEffect(() => {
-                let animationFrameId;
-                let lastDetectionTime = 0;
-                const detectionInterval = 1000 / 30; // Target 30 FPS for detection
-
-                const renderLoop = (timestamp) => {
-                    if (timestamp - lastDetectionTime >= detectionInterval) {
-                        detectObjects();
-                        lastDetectionTime = timestamp;
-                    }
-                    animationFrameId = requestAnimationFrame(renderLoop);
-                };
-
-                if (!isModelLoading && !error) {
-                    animationFrameId = requestAnimationFrame(renderLoop);
-                }
-
-                return () => {
-                    if (animationFrameId) {
-                        cancelAnimationFrame(animationFrameId);
-                    }
-                };
-            }, [isModelLoading, error, detectObjects]);
-
-            // Load the COCO-SSD model
-            React.useEffect(() => {
-                const loadModel = async () => {
-                    try {
-                        // Initialize TensorFlow.js
-                        setLoadingProgress(10);
-                        setLoadingStep('Loading TensorFlow.js...');
-                        updateLoadingStep('init', 'completed');
-                        updateLoadingStep('tf', 'active');
-                        
-                        await tf.ready();
-                        setLoadingProgress(30);
-                        updateLoadingStep('tf', 'completed');
-                        updateLoadingStep('model', 'active');
-                        
-                        // Load the COCO-SSD model
-                        setLoadingStep('Loading AI model...');
-                        const model = await cocoSsd.load({
-                            base: 'lite_mobilenet_v2'
-                        });
-                        
-                        setLoadingProgress(70);
-                        updateLoadingStep('model', 'completed');
-                        updateLoadingStep('camera', 'active');
-                        
-                        // Setup camera
-                        setLoadingStep('Setting up camera...');
-                        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate camera setup
-                        
-                        setLoadingProgress(90);
-                        updateLoadingStep('camera', 'completed');
-                        updateLoadingStep('ready', 'active');
-                        
-                        // Final setup
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                        setLoadingProgress(100);
-                        setLoadingStep('Ready to detect!');
-                        
-                        modelRef.current = model;
-                        setIsModelLoading(false);
-                        
-                        // Hide loading after a short delay
-                        setTimeout(() => {
-                            updateLoadingStep('ready', 'completed');
-                        }, 1000);
-                    } catch (err) {
-                        const errorMsg = 'Failed to load the AI model: ' + err.message;
-                        debugLog(errorMsg);
-                        setError(errorMsg);
-                    }
-                };
-                loadModel();
-            }, []);
-
-            const handleShare = () => {
-                try {
-                    const items = detections
-                        .filter(det => ['person', 'backpack', 'handbag', 'suitcase', 'bottle', 'wine glass', 'cup', 'bowl', 'chair', 'couch', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'].includes(det.class))
-                        .map(det => det.class);
-                    
-                    const text = `Today's Fit: ${items.join(', ')}`;
-                    navigator.clipboard.writeText(text);
-                    setShowToast(true);
-                    setTimeout(() => setShowToast(false), 2000);
-                } catch (err) {
-                    const errorMsg = 'Share error: ' + err.message;
-                    debugLog(errorMsg);
-                    setError(errorMsg);
-                }
-            };
 
             // Handle camera switch
             const handleCameraSwitch = async () => {
@@ -687,6 +362,81 @@
                 }
             };
 
+            // Load the COCO-SSD model
+            React.useEffect(() => {
+                const loadModel = async () => {
+                    try {
+                        setLoadingProgress('Loading TensorFlow.js...');
+                        debugLog('Loading TensorFlow.js...');
+                        
+                        // Wait for TensorFlow.js to be ready
+                        await tf.ready();
+                        setLoadingProgress('TensorFlow.js loaded, initializing COCO-SSD model...');
+                        debugLog('TensorFlow.js loaded, initializing COCO-SSD model...');
+                        
+                        // Load the COCO-SSD model
+                        const model = await cocoSsd.load({
+                            base: 'lite_mobilenet_v2'
+                        });
+                        
+                        debugLog('COCO-SSD model loaded successfully');
+                        setLoadingProgress('Model loaded successfully!');
+                        modelRef.current = model;
+                        setIsModelLoading(false);
+                    } catch (err) {
+                        const errorMsg = 'Failed to load the AI model: ' + err.message;
+                        debugLog(errorMsg);
+                        setError(errorMsg);
+                    }
+                };
+                loadModel();
+            }, []);
+
+            // Run detection
+            React.useEffect(() => {
+                let animationFrameId;
+                const detectObjects = async () => {
+                    if (modelRef.current && videoRef && !isTransitioning) {
+                        try {
+                            const predictions = await modelRef.current.detect(videoRef);
+                            setDetections(predictions);
+                        } catch (err) {
+                            const errorMsg = 'Detection error: ' + err.message;
+                            debugLog(errorMsg);
+                            setError(errorMsg);
+                        }
+                    }
+                    animationFrameId = requestAnimationFrame(detectObjects);
+                };
+
+                if (!isModelLoading && !error) {
+                    detectObjects();
+                }
+
+                return () => {
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                    }
+                };
+            }, [isModelLoading, error, videoRef, isTransitioning]);
+
+            const handleShare = () => {
+                try {
+                    const items = detections
+                        .filter(det => ['person', 'backpack', 'handbag', 'suitcase', 'bottle', 'wine glass', 'cup', 'bowl', 'chair', 'couch', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'].includes(det.class))
+                        .map(det => det.class);
+                    
+                    const text = `Today's Fit: ${items.join(', ')}`;
+                    navigator.clipboard.writeText(text);
+                    setShowToast(true);
+                    setTimeout(() => setShowToast(false), 2000);
+                } catch (err) {
+                    const errorMsg = 'Share error: ' + err.message;
+                    debugLog(errorMsg);
+                    setError(errorMsg);
+                }
+            };
+
             if (error) {
                 return React.createElement('div', { className: 'fixed inset-0 flex items-center justify-center bg-black bg-opacity-50' },
                     React.createElement('div', { className: 'bg-white p-6 rounded-lg shadow-xl max-w-md' },
@@ -701,10 +451,6 @@
             }
 
             return React.createElement('div', { className: 'relative w-full h-screen' },
-                // FPS Counter
-                React.createElement('div', {
-                    className: 'fixed top-4 left-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm'
-                }, `${fps} FPS`),
                 // Camera Switch Button
                 React.createElement('button', {
                     onClick: handleCameraSwitch,
@@ -747,23 +493,11 @@
                     className: 'fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-full shadow-lg transition-all duration-200'
                 }, 'Share My Fit'),
                 // Loading Indicator
-                isModelLoading && React.createElement('div', { className: 'loading-container' },
+                isModelLoading && React.createElement('div', {
+                    className: 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-50 text-white px-4 py-2 rounded text-center'
+                },
                     React.createElement('div', { className: 'loading-spinner' }),
-                    React.createElement('h3', { className: 'text-lg font-semibold mb-2' }, loadingStep),
-                    React.createElement('div', { className: 'loading-progress' },
-                        React.createElement('div', {
-                            className: 'loading-progress-bar',
-                            style: { width: `${loadingProgress}%` }
-                        })
-                    ),
-                    React.createElement('div', { className: 'loading-steps' },
-                        loadingSteps.map(step => 
-                            React.createElement('div', {
-                                key: step.id,
-                                className: `loading-step ${step.status}`
-                            }, step.text)
-                        )
-                    )
+                    React.createElement('p', { className: 'mt-2' }, loadingProgress)
                 ),
                 // Toast Message
                 showToast && React.createElement('div', {
