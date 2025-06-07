@@ -547,11 +547,10 @@
                     }
                 },
                 'shoe': {
-                    title: 'Nike Air Max 90',
-                    description: 'Classic sneaker with Air cushioning',
-                    price: '$129.99',
+                    title: 'Footwear',
+                    description: 'Shoe detected',
                     color: '#00FF00',
-                    brand: 'Nike',
+                    brand: 'Footwear',
                     style: {
                         lineWidth: 2,
                         lineDash: [5, 5],
@@ -559,11 +558,10 @@
                     }
                 },
                 'cell phone': {
-                    title: 'iPhone 14 Pro',
-                    description: 'Latest smartphone with A16 chip',
-                    price: '$999.99',
+                    title: 'Mobile Device',
+                    description: 'Smartphone detected',
                     color: '#FF00FF',
-                    brand: 'Apple',
+                    brand: 'Device',
                     style: {
                         lineWidth: 2,
                         lineDash: [],
@@ -571,11 +569,10 @@
                     }
                 },
                 'laptop': {
-                    title: 'MacBook Pro',
-                    description: 'Professional laptop with M2 chip',
-                    price: '$1999.99',
+                    title: 'Computer',
+                    description: 'Laptop detected',
                     color: '#FFFF00',
-                    brand: 'Apple',
+                    brand: 'Computer',
                     style: {
                         lineWidth: 2,
                         lineDash: [],
@@ -583,11 +580,10 @@
                     }
                 },
                 'glasses': {
-                    title: 'Ray-Ban Aviator',
-                    description: 'Classic aviator sunglasses',
-                    price: '$154.00',
+                    title: 'Eyewear',
+                    description: 'Glasses detected',
                     color: '#00FFFF',
-                    brand: 'Ray-Ban',
+                    brand: 'Eyewear',
                     style: {
                         lineWidth: 1,
                         lineDash: [2, 2],
@@ -595,11 +591,10 @@
                     }
                 },
                 'watch': {
-                    title: 'Apple Watch',
-                    description: 'Smartwatch with health features',
-                    price: '$399.00',
+                    title: 'Watch',
+                    description: 'Timepiece detected',
                     color: '#FFA500',
-                    brand: 'Apple',
+                    brand: 'Watch',
                     style: {
                         lineWidth: 1,
                         lineDash: [3, 3],
@@ -607,11 +602,10 @@
                     }
                 },
                 'backpack': {
-                    title: 'Jansport Backpack',
-                    description: 'Durable school backpack',
-                    price: '$49.99',
+                    title: 'Backpack',
+                    description: 'Bag detected',
                     color: '#800080',
-                    brand: 'Jansport',
+                    brand: 'Bag',
                     style: {
                         lineWidth: 2,
                         lineDash: [],
@@ -619,11 +613,10 @@
                     }
                 },
                 'handbag': {
-                    title: 'Louis Vuitton Bag',
-                    description: 'Luxury handbag',
-                    price: '$2,500.00',
+                    title: 'Bag',
+                    description: 'Handbag detected',
                     color: '#A52A2A',
-                    brand: 'Louis Vuitton',
+                    brand: 'Bag',
                     style: {
                         lineWidth: 2,
                         lineDash: [4, 4],
@@ -774,7 +767,6 @@
                     const labelText = [
                         `${metadata.brand}`,
                         `${metadata.title}`,
-                        metadata.price ? `${metadata.price}` : '',
                         `${metadata.description}`
                     ].filter(Boolean);
 
@@ -1216,11 +1208,6 @@
                     title: `Switch to ${isFrontCamera ? 'back' : 'front'} camera`,
                     disabled: isTransitioning
                 }, '📷'),
-                // Share Button
-                React.createElement('button', {
-                    onClick: handleShare,
-                    className: 'fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-full shadow-lg transition-all duration-200'
-                }, 'Share My Fit'),
                 // Loading Indicator
                 isModelLoading && React.createElement('div', { className: 'loading-container' },
                     React.createElement('div', { className: 'loading-spinner' }),
@@ -1239,11 +1226,7 @@
                             }, step.text)
                         )
                     )
-                ),
-                // Toast Message
-                showToast && React.createElement('div', {
-                    className: 'fixed top-8 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded shadow-lg transition-all duration-200'
-                }, 'Outfit copied to clipboard!')
+                )
             );
         };
 
