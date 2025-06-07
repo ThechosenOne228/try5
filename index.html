@@ -467,417 +467,209 @@
             const [videoRef, setVideoRef] = React.useState(initialVideoRef);
             const [isTransitioning, setIsTransitioning] = React.useState(false);
             const [fps, setFps] = React.useState(0);
-            const modelRef = React.useRef(null);
-            const fpsRef = React.useRef(0);
-            const lastFrameTimeRef = React.useRef(0);
-            const frameCountRef = React.useRef(0);
-            const lastFpsUpdateRef = React.useRef(0);
-            const lastTimeRef = React.useRef(performance.now());
+
+            // Refs for canvas and detection state
             const detectionCanvasRef = React.useRef(null);
-            const detectionContextRef = React.useRef(null);
-            const isDetectingRef = React.useRef(false);
-            const previousDetectionsRef = React.useRef([]);
-            const objectTracksRef = React.useRef(new Map());
             const overlayCanvasRef = React.useRef(null);
-            const overlayContextRef = React.useRef(null);
+            const modelRef = React.useRef(null);
+            const isActive = React.useRef(true);
+            const lastFrameTimeRef = React.useRef(performance.now());
+            const frameCountRef = React.useRef(0);
+            const lastFpsUpdateRef = React.useRef(performance.now());
 
-            // Target object classes with their minimum confidence thresholds
-            const TARGET_CLASSES = {
-                'person': 0.6,
-                'car': 0.7,
-                'shoe': 0.65,
-                'cell phone': 0.7,
-                'laptop': 0.7
+            // Category colors for different object types
+            const categoryColors = {
+                person: '#ff0000',
+                car: '#0000ff',
+                laptop: '#00ff00',
+                cell phone: '#ffff00',
+                bottle: '#ff00ff',
+                chair: '#00ffff',
+                default: '#ffffff'
             };
 
-            // Performance settings
-            const targetFps = 15;
-            const frameInterval = 1000 / targetFps;
-
-            // Calculate IoU (Intersection over Union) between two bounding boxes
-            const calculateIoU = (box1, box2) => {
-                const [x1, y1, w1, h1] = box1;
-                const [x2, y2, w2, h2] = box2;
-                
-                const intersectionX = Math.max(x1, x2);
-                const intersectionY = Math.max(y1, y2);
-                const intersectionWidth = Math.min(x1 + w1, x2 + w2) - intersectionX;
-                const intersectionHeight = Math.min(y1 + h1, y2 + h2) - intersectionY;
-                
-                if (intersectionWidth <= 0 || intersectionHeight <= 0) return 0;
-                
-                const intersectionArea = intersectionWidth * intersectionHeight;
-                const box1Area = w1 * h1;
-                const box2Area = w2 * h2;
-                
-                return intersectionArea / (box1Area + box2Area - intersectionArea);
-            };
-
-            // Smooth bounding box coordinates
-            const smoothBoundingBox = (current, previous, alpha = 0.3) => {
-                if (!previous) return current;
-                return current.map((coord, i) => 
-                    previous[i] + alpha * (coord - previous[i])
-                );
-            };
-
-            // Enhanced mock product metadata with more objects and styling
-            const mockProductData = {
-                'person': {
-                    title: 'Person',
-                    description: 'Human detected',
-                    color: '#FF0000',
-                    brand: 'Human',
-                    style: {
-                        lineWidth: 3,
-                        lineDash: [],
-                        labelBg: 'rgba(255, 0, 0, 0.7)'
-                    }
-                },
-                'car': {
-                    title: 'Vehicle',
-                    description: 'Automobile detected',
-                    color: '#0000FF',
-                    brand: 'Vehicle',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(0, 0, 255, 0.7)'
-                    }
-                },
-                'shoe': {
-                    title: 'Nike Air Max 90',
-                    description: 'Classic sneaker with Air cushioning',
-                    price: '$129.99',
-                    color: '#00FF00',
-                    brand: 'Nike',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [5, 5],
-                        labelBg: 'rgba(0, 255, 0, 0.7)'
-                    }
-                },
-                'cell phone': {
-                    title: 'iPhone 14 Pro',
-                    description: 'Latest smartphone with A16 chip',
-                    price: '$999.99',
-                    color: '#FF00FF',
-                    brand: 'Apple',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(255, 0, 255, 0.7)'
-                    }
-                },
-                'laptop': {
-                    title: 'MacBook Pro',
-                    description: 'Professional laptop with M2 chip',
-                    price: '$1999.99',
-                    color: '#FFFF00',
-                    brand: 'Apple',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(255, 255, 0, 0.7)'
-                    }
-                },
-                'glasses': {
-                    title: 'Ray-Ban Aviator',
-                    description: 'Classic aviator sunglasses',
-                    price: '$154.00',
-                    color: '#00FFFF',
-                    brand: 'Ray-Ban',
-                    style: {
-                        lineWidth: 1,
-                        lineDash: [2, 2],
-                        labelBg: 'rgba(0, 255, 255, 0.7)'
-                    }
-                },
-                'watch': {
-                    title: 'Apple Watch',
-                    description: 'Smartwatch with health features',
-                    price: '$399.00',
-                    color: '#FFA500',
-                    brand: 'Apple',
-                    style: {
-                        lineWidth: 1,
-                        lineDash: [3, 3],
-                        labelBg: 'rgba(255, 165, 0, 0.7)'
-                    }
-                },
-                'backpack': {
-                    title: 'Jansport Backpack',
-                    description: 'Durable school backpack',
-                    price: '$49.99',
-                    color: '#800080',
-                    brand: 'Jansport',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(128, 0, 128, 0.7)'
-                    }
-                },
-                'handbag': {
-                    title: 'Louis Vuitton Bag',
-                    description: 'Luxury handbag',
-                    price: '$2,500.00',
-                    color: '#A52A2A',
-                    brand: 'Louis Vuitton',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [4, 4],
-                        labelBg: 'rgba(165, 42, 42, 0.7)'
-                    }
-                }
-            };
-
-            // Object expiry settings
-            const OBJECT_EXPIRY_FRAMES = 30; // ~1 second at 30fps
-            const objectLastSeenRef = React.useRef(new Map());
-
-            // Track objects with expiry
-            const trackObjects = React.useCallback((predictions) => {
-                const currentTracks = new Map(objectTracksRef.current);
-                const currentTime = Date.now();
-
-                // Update last seen time for all current detections
-                predictions.forEach(pred => {
-                    const key = `${pred.class}-${pred.bbox.join(',')}`;
-                    objectLastSeenRef.current.set(key, currentTime);
-                });
-
-                // Remove expired objects
-                for (const [key, lastSeen] of objectLastSeenRef.current) {
-                    if (currentTime - lastSeen > OBJECT_EXPIRY_FRAMES * (1000 / 30)) {
-                        objectLastSeenRef.current.delete(key);
-                        currentTracks.delete(key);
-                    }
-                }
-
-                // Update tracks with new predictions
-                predictions.forEach(pred => {
-                    const key = `${pred.class}-${pred.bbox.join(',')}`;
-                    const existingTrack = currentTracks.get(key);
-                    
-                    if (existingTrack) {
-                        // Update existing track
-                        currentTracks.set(key, {
-                            ...existingTrack,
-                            lastBbox: pred.bbox,
-                            confidence: pred.score,
-                            age: existingTrack.age + 1
-                        });
-                    } else {
-                        // Create new track
-                        currentTracks.set(key, {
-                            id: key,
-                            class: pred.class,
-                            lastBbox: pred.bbox,
-                            confidence: pred.score,
-                            age: 0
-                        });
-                    }
-                });
-
-                objectTracksRef.current = currentTracks;
-                return Array.from(currentTracks.values());
-            }, []);
-
-            // Initialize canvases and handle window resize
+            // Initialize canvases
             React.useEffect(() => {
-                const initCanvases = () => {
-                    // Initialize detection canvas
-                    const detectionCanvas = detectionCanvasRef.current;
-                    if (detectionCanvas) {
-                        detectionCanvas.width = 640;
-                        detectionCanvas.height = 480;
-                        detectionCanvas.style.display = 'none'; // Hide detection canvas
-                        const detectionCtx = detectionCanvas.getContext('2d');
-                        if (detectionCtx) {
-                            detectionContextRef.current = detectionCtx;
-                        }
-                    }
+                const detectionCanvas = detectionCanvasRef.current;
+                const overlayCanvas = overlayCanvasRef.current;
+                
+                if (detectionCanvas && overlayCanvas) {
+                    // Set initial dimensions
+                    detectionCanvas.width = 640;
+                    detectionCanvas.height = 480;
+                    overlayCanvas.width = window.innerWidth;
+                    overlayCanvas.height = window.innerHeight;
+                    
+                    // Set overlay canvas style
+                    overlayCanvas.style.position = 'fixed';
+                    overlayCanvas.style.top = '0';
+                    overlayCanvas.style.left = '0';
+                    overlayCanvas.style.pointerEvents = 'none';
+                    overlayCanvas.style.zIndex = '1000';
+                }
 
-                    // Initialize overlay canvas
-                    const overlayCanvas = overlayCanvasRef.current;
+                // Handle window resize
+                const handleResize = () => {
                     if (overlayCanvas) {
                         overlayCanvas.width = window.innerWidth;
                         overlayCanvas.height = window.innerHeight;
-                        overlayCanvas.style.position = 'fixed';
-                        overlayCanvas.style.top = '0';
-                        overlayCanvas.style.left = '0';
-                        overlayCanvas.style.pointerEvents = 'none';
-                        overlayCanvas.style.zIndex = '1000';
-                        const overlayCtx = overlayCanvas.getContext('2d');
-                        if (overlayCtx) {
-                            overlayContextRef.current = overlayCtx;
-                        }
                     }
                 };
 
-                initCanvases();
-                window.addEventListener('resize', initCanvases);
-                return () => window.removeEventListener('resize', initCanvases);
+                window.addEventListener('resize', handleResize);
+                return () => window.removeEventListener('resize', handleResize);
             }, []);
 
-            // Draw detection overlays with optimized rendering
-            const drawOverlays = React.useCallback((detections) => {
-                if (!overlayContextRef.current || !detections) return;
-
-                const ctx = overlayContextRef.current;
-                const canvas = overlayCanvasRef.current;
-                
-                if (!canvas) return;
-                
-                // Ensure canvas dimensions match window
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                
-                // Clear previous frame completely
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                // Draw only live detections
-                detections.forEach(detection => {
-                    if (!detection.bbox || detection.bbox.length !== 4) return;
-                    
-                    const [x, y, width, height] = detection.bbox;
-                    const metadata = mockProductData[detection.class] || {
-                        title: detection.class,
-                        description: 'Object detected',
-                        color: '#FFFFFF',
-                        brand: detection.class,
-                        style: {
-                            lineWidth: 2,
-                            lineDash: [],
-                            labelBg: 'rgba(255, 255, 255, 0.7)'
-                        }
-                    };
-
-                    // Ensure coordinates are within canvas bounds
-                    const safeX = Math.max(0, Math.min(x, canvas.width));
-                    const safeY = Math.max(0, Math.min(y, canvas.height));
-                    const safeWidth = Math.min(width, canvas.width - safeX);
-                    const safeHeight = Math.min(height, canvas.height - safeY);
-
-                    // Draw bounding box with enhanced styling
-                    ctx.strokeStyle = metadata.color;
-                    ctx.lineWidth = metadata.style.lineWidth;
-                    if (metadata.style.lineDash.length > 0) {
-                        ctx.setLineDash(metadata.style.lineDash);
-                    } else {
-                        ctx.setLineDash([]);
+            // Load the COCO-SSD model
+            React.useEffect(() => {
+                const loadModel = async () => {
+                    try {
+                        // Initialize TensorFlow.js
+                        setLoadingProgress(10);
+                        setLoadingStep('Loading TensorFlow.js...');
+                        setLoadingSteps(prev => prev.map(step => 
+                            step.id === 'init' ? { ...step, status: 'completed' } : 
+                            step.id === 'tf' ? { ...step, status: 'active' } : step
+                        ));
+                        
+                        await tf.ready();
+                        setLoadingProgress(30);
+                        setLoadingSteps(prev => prev.map(step => 
+                            step.id === 'tf' ? { ...step, status: 'completed' } : 
+                            step.id === 'model' ? { ...step, status: 'active' } : step
+                        ));
+                        
+                        // Load the COCO-SSD model
+                        setLoadingStep('Loading AI model...');
+                        const model = await cocoSsd.load({
+                            base: 'lite_mobilenet_v2'
+                        });
+                        
+                        setLoadingProgress(70);
+                        setLoadingSteps(prev => prev.map(step => 
+                            step.id === 'model' ? { ...step, status: 'completed' } : 
+                            step.id === 'camera' ? { ...step, status: 'active' } : step
+                        ));
+                        
+                        // Setup camera
+                        setLoadingStep('Setting up camera...');
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        
+                        setLoadingProgress(90);
+                        setLoadingSteps(prev => prev.map(step => 
+                            step.id === 'camera' ? { ...step, status: 'completed' } : 
+                            step.id === 'ready' ? { ...step, status: 'active' } : step
+                        ));
+                        
+                        // Final setup
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        setLoadingProgress(100);
+                        setLoadingStep('Ready to detect!');
+                        
+                        modelRef.current = model;
+                        setIsModelLoading(false);
+                        
+                        // Hide loading after a short delay
+                        setTimeout(() => {
+                            setLoadingSteps(prev => prev.map(step => 
+                                step.id === 'ready' ? { ...step, status: 'completed' } : step
+                            ));
+                        }, 1000);
+                    } catch (err) {
+                        const errorMsg = 'Failed to load the AI model: ' + err.message;
+                        console.error(errorMsg);
+                        setError(errorMsg);
                     }
-                    ctx.strokeRect(safeX, safeY, safeWidth, safeHeight);
-
-                    // Calculate label position (prefer top-left, fallback to bottom)
-                    const labelText = [
-                        `${metadata.brand}`,
-                        `${metadata.title}`,
-                        metadata.price ? `${metadata.price}` : '',
-                        `${metadata.description}`
-                    ].filter(Boolean);
-
-                    ctx.font = '14px Arial';
-                    const textMetrics = ctx.measureText(labelText[0]);
-                    const labelWidth = Math.max(...labelText.map(text => ctx.measureText(text).width)) + 20;
-                    const labelHeight = labelText.length * 20 + 10;
-
-                    // Determine if label should go on top or bottom
-                    const hasSpaceOnTop = safeY > labelHeight;
-                    const labelY = hasSpaceOnTop ? safeY - labelHeight : safeY + safeHeight;
-                    const labelX = Math.min(safeX, canvas.width - labelWidth);
-
-                    // Draw label background with object-specific color
-                    ctx.fillStyle = metadata.style.labelBg;
-                    ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
-
-                    // Draw label text
-                    ctx.fillStyle = '#FFFFFF';
-                    labelText.forEach((text, index) => {
-                        ctx.fillText(text, labelX + 10, labelY + 20 + (index * 20));
-                    });
-
-                    // Reset line dash
-                    ctx.setLineDash([]);
-                });
+                };
+                loadModel();
             }, []);
 
-            // Optimized detection loop with FPS control
-            const detectObjects = React.useCallback(async () => {
-                if (!videoRef.current || !detectionCanvasRef.current || !overlayCanvasRef.current) return;
-                
+            // Optimized detection and rendering loop
+            const detectAndRender = React.useCallback(async () => {
+                if (!videoRef.current || !detectionCanvasRef.current || !overlayCanvasRef.current || !modelRef.current) {
+                    requestAnimationFrame(detectAndRender);
+                    return;
+                }
+
                 const video = videoRef.current;
                 const detectionCanvas = detectionCanvasRef.current;
                 const overlayCanvas = overlayCanvasRef.current;
                 const ctx = detectionCanvas.getContext('2d');
                 const overlayCtx = overlayCanvas.getContext('2d');
-                
-                if (!ctx || !overlayCtx) return;
 
-                // Update canvas dimensions to match video
-                const videoWidth = video.videoWidth;
-                const videoHeight = video.videoHeight;
-                
-                if (videoWidth === 0 || videoHeight === 0) return;
+                if (!ctx || !overlayCtx) {
+                    requestAnimationFrame(detectAndRender);
+                    return;
+                }
 
-                // Set canvas dimensions to match video
-                detectionCanvas.width = videoWidth;
-                detectionCanvas.height = videoHeight;
-                overlayCanvas.width = videoWidth;
-                overlayCanvas.height = videoHeight;
+                // Update FPS counter
+                const now = performance.now();
+                frameCountRef.current++;
+                if (now - lastFpsUpdateRef.current >= 1000) {
+                    setFps(Math.round(frameCountRef.current * 1000 / (now - lastFpsUpdateRef.current)));
+                    frameCountRef.current = 0;
+                    lastFpsUpdateRef.current = now;
+                }
 
                 try {
+                    // Scale video frame to detection canvas
+                    const videoWidth = video.videoWidth;
+                    const videoHeight = video.videoHeight;
+                    if (videoWidth === 0 || videoHeight === 0) {
+                        requestAnimationFrame(detectAndRender);
+                        return;
+                    }
+
+                    // Calculate scaling factors
+                    const scaleX = detectionCanvas.width / videoWidth;
+                    const scaleY = detectionCanvas.height / videoHeight;
+
                     // Draw video frame to detection canvas
-                    ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
-                    
+                    ctx.clearRect(0, 0, detectionCanvas.width, detectionCanvas.height);
+                    ctx.drawImage(video, 0, 0, detectionCanvas.width, detectionCanvas.height);
+
                     // Run detection
                     const predictions = await modelRef.current.detect(detectionCanvas);
-                    
-                    // Filter predictions with confidence threshold and bounds checking
-                    const validPredictions = predictions.filter(pred => {
-                        const confidence = pred.score;
-                        const [x, y, width, height] = pred.bbox;
-                        
-                        // Check confidence threshold
-                        if (confidence < 0.5) return false;
-                        
-                        // Validate bounding box coordinates
-                        if (x < 0 || y < 0 || width <= 0 || height <= 0) return false;
-                        if (x + width > videoWidth || y + height > videoHeight) return false;
-                        
-                        return true;
-                    });
-
-                    // Update state with only valid detections
-                    setDetections(validPredictions);
 
                     // Clear overlay canvas
                     overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
-                    // Draw boxes for current detections
+                    // Filter and scale predictions
+                    const validPredictions = predictions
+                        .filter(pred => pred.score >= 0.5)
+                        .map(pred => ({
+                            ...pred,
+                            bbox: [
+                                pred.bbox[0] / scaleX,
+                                pred.bbox[1] / scaleY,
+                                pred.bbox[2] / scaleX,
+                                pred.bbox[3] / scaleY
+                            ]
+                        }));
+
+                    // Update state with current detections
+                    setDetections(validPredictions);
+
+                    // Draw boxes and labels
                     validPredictions.forEach(prediction => {
                         const [x, y, width, height] = prediction.bbox;
                         const className = prediction.class;
                         const confidence = prediction.score;
-                        
-                        // Get metadata for this class
-                        const metadata = mockProductData[className] || {
-                            title: className,
-                            color: '#00ff00',
-                            lineWidth: 2
-                        };
+
+                        // Get color for this category
+                        const color = categoryColors[className] || categoryColors.default;
 
                         // Draw bounding box
-                        overlayCtx.strokeStyle = metadata.color;
-                        overlayCtx.lineWidth = metadata.lineWidth;
+                        overlayCtx.strokeStyle = color;
+                        overlayCtx.lineWidth = 2;
                         overlayCtx.strokeRect(x, y, width, height);
 
                         // Draw label background
-                        const labelText = `${metadata.title} (${Math.round(confidence * 100)}%)`;
+                        const labelText = `${className} ${Math.round(confidence * 100)}%`;
                         overlayCtx.font = '16px Arial';
                         const labelWidth = overlayCtx.measureText(labelText).width;
                         const labelHeight = 20;
-                        const labelX = Math.max(0, Math.min(x, videoWidth - labelWidth));
+                        const labelX = Math.max(0, Math.min(x, overlayCanvas.width - labelWidth));
                         const labelY = Math.max(labelHeight, y);
 
                         overlayCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -894,191 +686,86 @@
                 }
 
                 // Schedule next frame
-                if (isActive) {
-                    requestAnimationFrame(detectObjects);
+                if (isActive.current) {
+                    requestAnimationFrame(detectAndRender);
                 }
-            }, [modelRef, isActive]);
+            }, []);
 
             // Start detection loop
             React.useEffect(() => {
                 if (modelRef.current && !isModelLoading) {
-                    detectObjects();
+                    detectAndRender();
                 }
                 return () => {
-                    isActive = false;
+                    isActive.current = false;
                 };
-            }, [modelRef, isModelLoading, detectObjects]);
+            }, [modelRef, isModelLoading, detectAndRender]);
 
-            // Update FPS display
-            React.useEffect(() => {
-                const updateFps = () => {
-                    setFps(fpsRef.current);
-                };
-
-                const fpsInterval = setInterval(updateFps, 1000);
-                return () => clearInterval(fpsInterval);
-            }, []);
-
-            // Update loading step
-            const updateLoadingStep = (stepId, status) => {
-                setLoadingSteps(prevSteps => 
-                    prevSteps.map(step => 
-                        step.id === stepId 
-                            ? { ...step, status } 
-                            : step
-                    )
-                );
-            };
-
-            // Load the COCO-SSD model
-            React.useEffect(() => {
-                const loadModel = async () => {
-                    try {
-                        // Initialize TensorFlow.js
-                        setLoadingProgress(10);
-                        setLoadingStep('Loading TensorFlow.js...');
-                        updateLoadingStep('init', 'completed');
-                        updateLoadingStep('tf', 'active');
-                        
-                        await tf.ready();
-                        setLoadingProgress(30);
-                        updateLoadingStep('tf', 'completed');
-                        updateLoadingStep('model', 'active');
-                        
-                        // Load the COCO-SSD model
-                        setLoadingStep('Loading AI model...');
-                        const model = await cocoSsd.load({
-                            base: 'lite_mobilenet_v2'
-                        });
-                        
-                        setLoadingProgress(70);
-                        updateLoadingStep('model', 'completed');
-                        updateLoadingStep('camera', 'active');
-                        
-                        // Setup camera
-                        setLoadingStep('Setting up camera...');
-                        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate camera setup
-                        
-                        setLoadingProgress(90);
-                        updateLoadingStep('camera', 'completed');
-                        updateLoadingStep('ready', 'active');
-                        
-                        // Final setup
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                        setLoadingProgress(100);
-                        setLoadingStep('Ready to detect!');
-                        
-                        modelRef.current = model;
-                        setIsModelLoading(false);
-                        
-                        // Hide loading after a short delay
-                        setTimeout(() => {
-                            updateLoadingStep('ready', 'completed');
-                        }, 1000);
-                    } catch (err) {
-                        const errorMsg = 'Failed to load the AI model: ' + err.message;
-                        debugLog(errorMsg);
-                        setError(errorMsg);
-                    }
-                };
-                loadModel();
-            }, []);
-
-            // Fix camera switching
-            const handleCameraSwitch = React.useCallback(async () => {
+            // Handle camera switch
+            const handleCameraSwitch = async () => {
                 if (isTransitioning) return;
+                setIsTransitioning(true);
 
                 try {
-                    setIsTransitioning(true);
-                    setLoadingStep('Switching camera...');
-                    setLoadingProgress(50);
-
-                    // Stop all tracks and clear video source
+                    // Stop current stream
                     if (videoRef.current.srcObject) {
-                        videoRef.current.srcObject.getTracks().forEach(track => {
-                            track.stop();
-                        });
+                        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
                         videoRef.current.srcObject = null;
                     }
 
-                    // Clear detection state
-                    setDetections([]);
-                    if (overlayContextRef.current) {
-                        overlayContextRef.current.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
-                    }
-
-                    // Switch camera
-                    const newFacingMode = isFrontCamera ? 'environment' : 'user';
+                    // Get new stream
                     const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { 
-                            facingMode: newFacingMode,
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
+                        video: {
+                            facingMode: isFrontCamera ? 'environment' : 'user'
                         }
                     });
 
-                    // Update video source and wait for it to be ready
+                    // Update video source
                     videoRef.current.srcObject = stream;
-                    await new Promise((resolve) => {
+                    await new Promise(resolve => {
                         videoRef.current.onloadedmetadata = () => {
                             videoRef.current.play().then(resolve);
                         };
                     });
 
-                    // Update state
+                    // Update camera state
                     setIsFrontCamera(!isFrontCamera);
-                    setLoadingProgress(100);
-                    setLoadingStep('Camera switched successfully!');
-
-                    // Reset loading state after a short delay
-                    setTimeout(() => {
-                        setIsTransitioning(false);
-                        setLoadingStep('');
-                        setLoadingProgress(0);
-                    }, 1000);
-
-                } catch (err) {
-                    console.error('Camera switch error:', err);
-                    setLoadingStep('Failed to switch camera. Please try again.');
-                    setTimeout(() => {
-                        setIsTransitioning(false);
-                        setLoadingStep('');
-                        setLoadingProgress(0);
-                    }, 2000);
+                } catch (error) {
+                    console.error('Camera switch error:', error);
+                    setError('Camera switch error: ' + error.message);
+                } finally {
+                    setIsTransitioning(false);
                 }
-            }, [isFrontCamera, isTransitioning, videoRef]);
+            };
 
-            // Initialize webcam with proper error handling
-            const initWebcam = React.useCallback(async () => {
-                try {
-                    setLoadingStep('Initializing camera...');
-                    setLoadingProgress(20);
-
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { 
-                            facingMode: 'user',
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
-                        }
-                    });
-
-                    if (videoRef) {
-                        videoRef.current.srcObject = stream;
-                        await new Promise((resolve) => {
-                            videoRef.current.onloadedmetadata = () => {
-                                videoRef.current.play().then(resolve);
-                            };
+            // Initialize webcam
+            React.useEffect(() => {
+                const initWebcam = async () => {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({
+                            video: { 
+                                facingMode: 'user',
+                                width: { ideal: 1280 },
+                                height: { ideal: 720 }
+                            }
                         });
-                        setLoadingProgress(40);
-                        setLoadingStep('Camera initialized successfully!');
-                    }
 
-                } catch (err) {
-                    console.error('Webcam initialization error:', err);
-                    setLoadingStep('Failed to access camera. Please check permissions.');
-                    throw err;
-                }
-            }, [videoRef]);
+                        if (videoRef.current) {
+                            videoRef.current.srcObject = stream;
+                            await new Promise(resolve => {
+                                videoRef.current.onloadedmetadata = () => {
+                                    videoRef.current.play().then(resolve);
+                                };
+                            });
+                        }
+                    } catch (err) {
+                        console.error('Webcam initialization error:', err);
+                        setError('Failed to access camera. Please check permissions.');
+                    }
+                };
+
+                initWebcam();
+            }, []);
 
             if (error) {
                 return React.createElement('div', { className: 'fixed inset-0 flex items-center justify-center bg-black bg-opacity-50' },
@@ -1133,7 +820,7 @@
                 // Camera Switch Button
                 React.createElement('button', {
                     onClick: handleCameraSwitch,
-                    className: 'camera-switch',
+                    className: 'fixed top-4 right-4 bg-black bg-opacity-50 text-white p-2 rounded-full',
                     title: `Switch to ${isFrontCamera ? 'back' : 'front'} camera`,
                     disabled: isTransitioning
                 }, '📷'),
