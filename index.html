@@ -14,6 +14,8 @@
     <!-- TensorFlow.js -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+    <!-- MoveNet for pose detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.0.0/dist/pose-detection.min.js"></script>
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -82,10 +84,15 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        .camera-switch {
+        .camera-controls {
             position: fixed;
             top: 20px;
             right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+        .camera-button {
             background: rgba(0, 0, 0, 0.5);
             color: white;
             border: none;
@@ -96,14 +103,17 @@
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            z-index: 1000;
             transition: all 0.3s ease;
         }
-        .camera-switch:hover {
+        .camera-button:hover {
             background: rgba(0, 0, 0, 0.7);
         }
-        .camera-switch:active {
+        .camera-button:active {
             transform: scale(0.95);
+        }
+        .camera-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
         .detection-label {
             position: absolute;
@@ -116,6 +126,7 @@
             gap: 8px;
             transition: all 0.3s ease;
             border: 2px solid #fff;
+            max-width: 300px;
         }
         .detection-label:hover {
             background: rgba(0, 0, 0, 0.9);
@@ -125,6 +136,14 @@
             width: 24px;
             height: 24px;
             object-fit: contain;
+        }
+        .price-tag {
+            background: #4CAF50;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            margin-left: 4px;
         }
         .camera-transition {
             position: fixed;
@@ -141,6 +160,20 @@
         .camera-transition.active {
             opacity: 1;
         }
+        .pose-point {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #00ff00;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .pose-line {
+            position: absolute;
+            background: #00ff00;
+            height: 2px;
+            transform-origin: 0 0;
+        }
     </style>
 </head>
 <body>
@@ -154,6 +187,54 @@
 
     <!-- App Scripts -->
     <script type="text/babel">
+        // Product database with prices and descriptions
+        const productDatabase = {
+            'nike hoodie': {
+                price: 69.99,
+                description: 'Red hoodie with brushed fleece interior',
+                category: 'tops'
+            },
+            'nike shoes': {
+                price: 129.99,
+                description: 'White Air Force 1s with clean design',
+                category: 'shoes'
+            },
+            'adidas pants': {
+                price: 59.99,
+                description: 'Black track pants with three stripes',
+                category: 'bottoms'
+            },
+            'ray-ban sunglasses': {
+                price: 154.00,
+                description: 'Classic Wayfarer style',
+                category: 'accessories'
+            },
+            'levi\'s jeans': {
+                price: 79.99,
+                description: 'Classic 501 straight fit',
+                category: 'bottoms'
+            }
+        };
+
+        // Pose keypoints mapping
+        const poseKeypoints = {
+            nose: 0,
+            leftEye: 1,
+            rightEye: 2,
+            leftShoulder: 5,
+            rightShoulder: 6,
+            leftElbow: 7,
+            rightElbow: 8,
+            leftWrist: 9,
+            rightWrist: 10,
+            leftHip: 11,
+            rightHip: 12,
+            leftKnee: 13,
+            rightKnee: 14,
+            leftAnkle: 15,
+            rightAnkle: 16
+        };
+
         // Brand logos mapping
         const brandLogos = {
             // Sportswear
@@ -311,6 +392,17 @@
             return null;
         }
 
+        // Function to get product info
+        function getProductInfo(className) {
+            const lowerClassName = className.toLowerCase();
+            for (const [key, info] of Object.entries(productDatabase)) {
+                if (lowerClassName.includes(key)) {
+                    return info;
+                }
+            }
+            return null;
+        }
+
         // Debug logging function
         function debugLog(message) {
             console.log(message);
@@ -332,7 +424,8 @@
                 'React': typeof React !== 'undefined',
                 'ReactDOM': typeof ReactDOM !== 'undefined',
                 'TensorFlow.js': typeof tf !== 'undefined',
-                'COCO-SSD': typeof cocoSsd !== 'undefined'
+                'COCO-SSD': typeof cocoSsd !== 'undefined',
+                'Pose Detection': typeof poseDetection !== 'undefined'
             };
 
             const missing = Object.entries(dependencies)
@@ -386,6 +479,7 @@
         // App Component
         const App = ({ initialVideoRef }) => {
             const [detections, setDetections] = React.useState([]);
+            const [poses, setPoses] = React.useState([]);
             const [isModelLoading, setIsModelLoading] = React.useState(true);
             const [loadingProgress, setLoadingProgress] = React.useState('Initializing...');
             const [showToast, setShowToast] = React.useState(false);
@@ -394,23 +488,87 @@
             const [videoRef, setVideoRef] = React.useState(initialVideoRef);
             const [isTransitioning, setIsTransitioning] = React.useState(false);
             const modelRef = React.useRef(null);
+            const poseModelRef = React.useRef(null);
+
+            // Load models
+            React.useEffect(() => {
+                const loadModels = async () => {
+                    try {
+                        setLoadingProgress('Loading TensorFlow.js...');
+                        await tf.ready();
+                        
+                        setLoadingProgress('Loading COCO-SSD model...');
+                        const model = await cocoSsd.load({
+                            base: 'lite_mobilenet_v2'
+                        });
+                        modelRef.current = model;
+
+                        setLoadingProgress('Loading MoveNet model...');
+                        const poseModel = await poseDetection.createDetector(
+                            poseDetection.SupportedModels.MoveNet,
+                            {
+                                modelType: 'lightning'
+                            }
+                        );
+                        poseModelRef.current = poseModel;
+
+                        setLoadingProgress('Models loaded successfully!');
+                        setIsModelLoading(false);
+                    } catch (err) {
+                        const errorMsg = 'Failed to load models: ' + err.message;
+                        debugLog(errorMsg);
+                        setError(errorMsg);
+                    }
+                };
+                loadModels();
+            }, []);
+
+            // Run detection
+            React.useEffect(() => {
+                let animationFrameId;
+                const detectObjectsAndPose = async () => {
+                    if (modelRef.current && poseModelRef.current && videoRef && !isTransitioning) {
+                        try {
+                            // Run object detection
+                            const predictions = await modelRef.current.detect(videoRef);
+                            setDetections(predictions);
+
+                            // Run pose detection
+                            const poses = await poseModelRef.current.estimatePoses(videoRef);
+                            setPoses(poses);
+                        } catch (err) {
+                            const errorMsg = 'Detection error: ' + err.message;
+                            debugLog(errorMsg);
+                            setError(errorMsg);
+                        }
+                    }
+                    animationFrameId = requestAnimationFrame(detectObjectsAndPose);
+                };
+
+                if (!isModelLoading && !error) {
+                    detectObjectsAndPose();
+                }
+
+                return () => {
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                    }
+                };
+            }, [isModelLoading, error, videoRef, isTransitioning]);
 
             // Handle camera switch
-            const handleCameraSwitch = async () => {
+            const handleCameraSwitch = async (facingMode) => {
                 try {
                     setIsTransitioning(true);
                     const transitionElement = document.getElementById('camera-transition');
                     transitionElement.classList.add('active');
                     
-                    // Wait for transition
                     await new Promise(resolve => setTimeout(resolve, 500));
                     
-                    const newFacingMode = isFrontCamera ? 'environment' : 'user';
-                    const newVideoRef = await initWebcam(newFacingMode);
+                    const newVideoRef = await initWebcam(facingMode);
                     setVideoRef(newVideoRef);
-                    setIsFrontCamera(!isFrontCamera);
+                    setIsFrontCamera(facingMode === 'user');
                     
-                    // Wait for video to be ready
                     await new Promise(resolve => setTimeout(resolve, 100));
                     
                     transitionElement.classList.remove('active');
@@ -422,64 +580,6 @@
                     setIsTransitioning(false);
                 }
             };
-
-            // Load the COCO-SSD model
-            React.useEffect(() => {
-                const loadModel = async () => {
-                    try {
-                        setLoadingProgress('Loading TensorFlow.js...');
-                        debugLog('Loading TensorFlow.js...');
-                        
-                        // Wait for TensorFlow.js to be ready
-                        await tf.ready();
-                        setLoadingProgress('TensorFlow.js loaded, initializing COCO-SSD model...');
-                        debugLog('TensorFlow.js loaded, initializing COCO-SSD model...');
-                        
-                        // Load the COCO-SSD model
-                        const model = await cocoSsd.load({
-                            base: 'lite_mobilenet_v2'
-                        });
-                        
-                        debugLog('COCO-SSD model loaded successfully');
-                        setLoadingProgress('Model loaded successfully!');
-                        modelRef.current = model;
-                        setIsModelLoading(false);
-                    } catch (err) {
-                        const errorMsg = 'Failed to load the AI model: ' + err.message;
-                        debugLog(errorMsg);
-                        setError(errorMsg);
-                    }
-                };
-                loadModel();
-            }, []);
-
-            // Run detection
-            React.useEffect(() => {
-                let animationFrameId;
-                const detectObjects = async () => {
-                    if (modelRef.current && videoRef && !isTransitioning) {
-                        try {
-                            const predictions = await modelRef.current.detect(videoRef);
-                            setDetections(predictions);
-                        } catch (err) {
-                            const errorMsg = 'Detection error: ' + err.message;
-                            debugLog(errorMsg);
-                            setError(errorMsg);
-                        }
-                    }
-                    animationFrameId = requestAnimationFrame(detectObjects);
-                };
-
-                if (!isModelLoading && !error) {
-                    detectObjects();
-                }
-
-                return () => {
-                    if (animationFrameId) {
-                        cancelAnimationFrame(animationFrameId);
-                    }
-                };
-            }, [isModelLoading, error, videoRef, isTransitioning]);
 
             const handleShare = () => {
                 try {
@@ -512,16 +612,38 @@
             }
 
             return React.createElement('div', { className: 'relative w-full h-screen' },
-                // Camera Switch Button
-                React.createElement('button', {
-                    onClick: handleCameraSwitch,
-                    className: 'camera-switch',
-                    title: `Switch to ${isFrontCamera ? 'back' : 'front'} camera`,
-                    disabled: isTransitioning
-                }, '📷'),
+                // Camera Controls
+                React.createElement('div', { className: 'camera-controls' },
+                    React.createElement('button', {
+                        onClick: () => handleCameraSwitch('user'),
+                        className: 'camera-button',
+                        title: 'Switch to front camera',
+                        disabled: isTransitioning || isFrontCamera
+                    }, '📱'),
+                    React.createElement('button', {
+                        onClick: () => handleCameraSwitch('environment'),
+                        className: 'camera-button',
+                        title: 'Switch to back camera',
+                        disabled: isTransitioning || !isFrontCamera
+                    }, '📷')
+                ),
+                // Pose Points and Lines
+                poses.map((pose, poseIndex) => 
+                    pose.keypoints.map((keypoint, index) => 
+                        keypoint.score > 0.3 && React.createElement('div', {
+                            key: `pose-${poseIndex}-${index}`,
+                            className: 'pose-point',
+                            style: {
+                                left: `${keypoint.x}px`,
+                                top: `${keypoint.y}px`
+                            }
+                        })
+                    )
+                ),
                 // Detection Labels
                 detections.map((detection, index) => {
                     const brand = detectBrand(detection.class);
+                    const productInfo = getProductInfo(detection.class);
                     return React.createElement('div', {
                         key: index,
                         className: 'detection-label',
@@ -532,19 +654,21 @@
                             height: `${detection.bbox[3]}px`
                         }
                     },
-                        React.createElement('div', { className: 'flex items-center gap-2' },
-                            brand && React.createElement('img', {
-                                src: brandLogos[brand],
-                                alt: brand,
-                                className: 'brand-logo'
-                            }),
-                            React.createElement('span', null, detection.class),
-                            React.createElement('a', {
-                                href: `https://www.google.com/search?tbm=shop&q=${detection.class}`,
-                                target: '_blank',
-                                rel: 'noopener noreferrer',
-                                className: 'text-blue-400 hover:text-blue-300'
-                            }, '🔍')
+                        React.createElement('div', { className: 'flex flex-col' },
+                            React.createElement('div', { className: 'flex items-center gap-2' },
+                                brand && React.createElement('img', {
+                                    src: brandLogos[brand],
+                                    alt: brand,
+                                    className: 'brand-logo'
+                                }),
+                                React.createElement('span', null, detection.class),
+                                productInfo && React.createElement('span', {
+                                    className: 'price-tag'
+                                }, `$${productInfo.price}`)
+                            ),
+                            productInfo && React.createElement('span', {
+                                className: 'text-sm text-gray-300'
+                            }, productInfo.description)
                         )
                     );
                 }),
