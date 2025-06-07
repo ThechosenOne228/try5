@@ -469,10 +469,7 @@
             const [isTransitioning, setIsTransitioning] = React.useState(false);
             const [fps, setFps] = React.useState(0);
             const modelRef = React.useRef(null);
-            const fpsRef = React.useRef(0);
-            const lastFrameTimeRef = React.useRef(0);
             const frameCountRef = React.useRef(0);
-            const lastFpsUpdateRef = React.useRef(0);
             const lastTimeRef = React.useRef(performance.now());
             const detectionCanvasRef = React.useRef(null);
             const detectionContextRef = React.useRef(null);
@@ -490,10 +487,6 @@
                 'cell phone': 0.7,
                 'laptop': 0.7
             };
-
-            // Performance settings
-            const targetFps = 15;
-            const frameInterval = 1000 / targetFps;
 
             // Calculate IoU (Intersection over Union) between two bounding boxes
             const calculateIoU = (box1, box2) => {
@@ -522,113 +515,40 @@
                 );
             };
 
-            // Enhanced mock product metadata with more objects and styling
+            // Mock product metadata with more details
             const mockProductData = {
                 'person': {
                     title: 'Person',
                     description: 'Human detected',
                     color: '#FF0000',
-                    brand: 'Human',
-                    style: {
-                        lineWidth: 3,
-                        lineDash: [],
-                        labelBg: 'rgba(255, 0, 0, 0.7)'
-                    }
+                    brand: 'Human'
                 },
                 'car': {
                     title: 'Vehicle',
                     description: 'Automobile detected',
                     color: '#0000FF',
-                    brand: 'Vehicle',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(0, 0, 255, 0.7)'
-                    }
+                    brand: 'Vehicle'
                 },
                 'shoe': {
                     title: 'Nike Air Max 90',
                     description: 'Classic sneaker with Air cushioning',
                     price: '$129.99',
                     color: '#00FF00',
-                    brand: 'Nike',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [5, 5],
-                        labelBg: 'rgba(0, 255, 0, 0.7)'
-                    }
+                    brand: 'Nike'
                 },
                 'cell phone': {
                     title: 'iPhone 14 Pro',
                     description: 'Latest smartphone with A16 chip',
                     price: '$999.99',
                     color: '#FF00FF',
-                    brand: 'Apple',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(255, 0, 255, 0.7)'
-                    }
+                    brand: 'Apple'
                 },
                 'laptop': {
                     title: 'MacBook Pro',
                     description: 'Professional laptop with M2 chip',
                     price: '$1999.99',
                     color: '#FFFF00',
-                    brand: 'Apple',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(255, 255, 0, 0.7)'
-                    }
-                },
-                'glasses': {
-                    title: 'Ray-Ban Aviator',
-                    description: 'Classic aviator sunglasses',
-                    price: '$154.00',
-                    color: '#00FFFF',
-                    brand: 'Ray-Ban',
-                    style: {
-                        lineWidth: 1,
-                        lineDash: [2, 2],
-                        labelBg: 'rgba(0, 255, 255, 0.7)'
-                    }
-                },
-                'watch': {
-                    title: 'Apple Watch',
-                    description: 'Smartwatch with health features',
-                    price: '$399.00',
-                    color: '#FFA500',
-                    brand: 'Apple',
-                    style: {
-                        lineWidth: 1,
-                        lineDash: [3, 3],
-                        labelBg: 'rgba(255, 165, 0, 0.7)'
-                    }
-                },
-                'backpack': {
-                    title: 'Jansport Backpack',
-                    description: 'Durable school backpack',
-                    price: '$49.99',
-                    color: '#800080',
-                    brand: 'Jansport',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [],
-                        labelBg: 'rgba(128, 0, 128, 0.7)'
-                    }
-                },
-                'handbag': {
-                    title: 'Louis Vuitton Bag',
-                    description: 'Luxury handbag',
-                    price: '$2,500.00',
-                    color: '#A52A2A',
-                    brand: 'Louis Vuitton',
-                    style: {
-                        lineWidth: 2,
-                        lineDash: [4, 4],
-                        labelBg: 'rgba(165, 42, 42, 0.7)'
-                    }
+                    brand: 'Apple'
                 }
             };
 
@@ -684,130 +604,8 @@
                 return Array.from(currentTracks.values());
             }, []);
 
-            // Initialize canvases and handle window resize
-            React.useEffect(() => {
-                const initCanvases = () => {
-                    // Initialize detection canvas
-                    const detectionCanvas = detectionCanvasRef.current;
-                    if (detectionCanvas) {
-                        detectionCanvas.width = 640;
-                        detectionCanvas.height = 480;
-                        const detectionCtx = detectionCanvas.getContext('2d');
-                        if (detectionCtx) {
-                            detectionContextRef.current = detectionCtx;
-                        }
-                    }
-
-                    // Initialize overlay canvas
-                    const overlayCanvas = overlayCanvasRef.current;
-                    if (overlayCanvas) {
-                        overlayCanvas.width = window.innerWidth;
-                        overlayCanvas.height = window.innerHeight;
-                        const overlayCtx = overlayCanvas.getContext('2d');
-                        if (overlayCtx) {
-                            overlayContextRef.current = overlayCtx;
-                        }
-                    }
-                };
-
-                initCanvases();
-                window.addEventListener('resize', initCanvases);
-                return () => window.removeEventListener('resize', initCanvases);
-            }, []);
-
-            // Draw detection overlays with optimized rendering
-            const drawOverlays = React.useCallback((detections) => {
-                if (!overlayContextRef.current || !detections) return;
-
-                const ctx = overlayContextRef.current;
-                const canvas = overlayCanvasRef.current;
-                
-                if (!canvas) return;
-                
-                // Ensure canvas dimensions match window
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                
-                // Clear previous frame completely
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                // Draw only live detections
-                detections.forEach(detection => {
-                    if (!detection.bbox || detection.bbox.length !== 4) return;
-                    
-                    const [x, y, width, height] = detection.bbox;
-                    const metadata = mockProductData[detection.class] || {
-                        title: detection.class,
-                        description: 'Object detected',
-                        color: '#FFFFFF',
-                        brand: detection.class,
-                        style: {
-                            lineWidth: 2,
-                            lineDash: [],
-                            labelBg: 'rgba(255, 255, 255, 0.7)'
-                        }
-                    };
-
-                    // Ensure coordinates are within canvas bounds
-                    const safeX = Math.max(0, Math.min(x, canvas.width));
-                    const safeY = Math.max(0, Math.min(y, canvas.height));
-                    const safeWidth = Math.min(width, canvas.width - safeX);
-                    const safeHeight = Math.min(height, canvas.height - safeY);
-
-                    // Draw bounding box with enhanced styling
-                    ctx.strokeStyle = metadata.color;
-                    ctx.lineWidth = metadata.style.lineWidth;
-                    if (metadata.style.lineDash.length > 0) {
-                        ctx.setLineDash(metadata.style.lineDash);
-                    } else {
-                        ctx.setLineDash([]);
-                    }
-                    ctx.strokeRect(safeX, safeY, safeWidth, safeHeight);
-
-                    // Calculate label position (prefer top-left, fallback to bottom)
-                    const labelText = [
-                        `${metadata.brand}`,
-                        `${metadata.title}`,
-                        metadata.price ? `${metadata.price}` : '',
-                        `${metadata.description}`
-                    ].filter(Boolean);
-
-                    ctx.font = '14px Arial';
-                    const textMetrics = ctx.measureText(labelText[0]);
-                    const labelWidth = Math.max(...labelText.map(text => ctx.measureText(text).width)) + 20;
-                    const labelHeight = labelText.length * 20 + 10;
-
-                    // Determine if label should go on top or bottom
-                    const hasSpaceOnTop = safeY > labelHeight;
-                    const labelY = hasSpaceOnTop ? safeY - labelHeight : safeY + safeHeight;
-                    const labelX = Math.min(safeX, canvas.width - labelWidth);
-
-                    // Draw label background with object-specific color
-                    ctx.fillStyle = metadata.style.labelBg;
-                    ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
-
-                    // Draw label text
-                    ctx.fillStyle = '#FFFFFF';
-                    labelText.forEach((text, index) => {
-                        ctx.fillText(text, labelX + 10, labelY + 20 + (index * 20));
-                    });
-
-                    // Reset line dash
-                    ctx.setLineDash([]);
-                });
-            }, []);
-
-            // Optimized detection loop with FPS control
+            // Optimized detection loop with frame-by-frame rendering
             const detectObjects = React.useCallback(async () => {
-                const now = performance.now();
-                const elapsed = now - lastFrameTimeRef.current;
-
-                // Skip frame if we're running too fast
-                if (elapsed < frameInterval) {
-                    requestAnimationFrame(detectObjects);
-                    return;
-                }
-
                 if (!modelRef.current || !videoRef || !detectionContextRef.current || isTransitioning || isDetectingRef.current) {
                     requestAnimationFrame(detectObjects);
                     return;
@@ -815,7 +613,6 @@
 
                 try {
                     isDetectingRef.current = true;
-                    lastFrameTimeRef.current = now;
 
                     // Scale down video frame for detection
                     const ctx = detectionContextRef.current;
@@ -846,61 +643,24 @@
                         offsetX = (canvas.width - drawWidth) / 2;
                     }
 
-                    // Draw scaled frame with error handling
-                    try {
-                        ctx.drawImage(
-                            videoRef,
-                            offsetX, offsetY,
-                            drawWidth, drawHeight
-                        );
-                    } catch (err) {
-                        console.warn('Error drawing video frame:', err);
-                        requestAnimationFrame(detectObjects);
-                        return;
-                    }
+                    // Draw scaled frame
+                    ctx.drawImage(
+                        videoRef,
+                        offsetX, offsetY,
+                        drawWidth, drawHeight
+                    );
 
-                    // Run detection on scaled frame with timeout
-                    const startTime = performance.now();
-                    let predictions;
-                    try {
-                        predictions = await Promise.race([
-                            modelRef.current.detect(canvas),
-                            new Promise((_, reject) => 
-                                setTimeout(() => reject(new Error('Detection timeout')), 1000)
-                            )
-                        ]);
-                    } catch (err) {
-                        console.warn('Detection error or timeout:', err);
-                        requestAnimationFrame(detectObjects);
-                        return;
-                    }
-                    const inferenceTime = performance.now() - startTime;
-
-                    // Update FPS counter
-                    frameCountRef.current++;
-                    if (now - lastFpsUpdateRef.current >= 1000) {
-                        fpsRef.current = frameCountRef.current;
-                        frameCountRef.current = 0;
-                        lastFpsUpdateRef.current = now;
-                    }
+                    // Run detection on scaled frame
+                    const predictions = await modelRef.current.detect(canvas);
 
                     if (!predictions || !Array.isArray(predictions)) {
                         requestAnimationFrame(detectObjects);
                         return;
                     }
 
-                    // Filter predictions with confidence threshold and bounds checking
+                    // Filter predictions with high confidence
                     const liveDetections = predictions
-                        .filter(pred => {
-                            if (!pred || !pred.bbox || pred.bbox.length !== 4) return false;
-                            if (pred.score < 0.5) return false;
-                            
-                            // Check if bbox is within reasonable bounds
-                            const [x, y, width, height] = pred.bbox;
-                            return x >= 0 && y >= 0 && width > 0 && height > 0 &&
-                                   x + width <= videoRef.videoWidth &&
-                                   y + height <= videoRef.videoHeight;
-                        })
+                        .filter(pred => pred.score >= 0.5 && pred.bbox && pred.bbox.length === 4)
                         .map(pred => {
                             // Scale predictions back to original video size
                             const scaleX = videoRef.videoWidth / canvas.width;
@@ -922,11 +682,6 @@
                     // Draw overlays for live detections only
                     drawOverlays(liveDetections);
 
-                    // Log performance metrics
-                    if (inferenceTime > frameInterval) {
-                        console.warn(`Frame dropped: Inference took ${inferenceTime.toFixed(2)}ms`);
-                    }
-
                 } catch (err) {
                     console.error('Detection error:', err);
                 } finally {
@@ -935,44 +690,105 @@
                 }
             }, [videoRef, isTransitioning, drawOverlays]);
 
-            // Initialize detection loop with performance monitoring and cleanup
+            // Draw detection overlays with optimized rendering
+            const drawOverlays = React.useCallback((detections) => {
+                if (!overlayContextRef.current || !detections) return;
+
+                const ctx = overlayContextRef.current;
+                const canvas = overlayCanvasRef.current;
+                
+                // Ensure canvas dimensions match window
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                
+                // Clear previous frame completely
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw only live detections
+                detections.forEach(detection => {
+                    if (!detection.bbox || detection.bbox.length !== 4) return;
+                    
+                    const [x, y, width, height] = detection.bbox;
+                    const metadata = mockProductData[detection.class] || {
+                        title: detection.class,
+                        description: 'Object detected',
+                        color: '#FFFFFF',
+                        brand: detection.class
+                    };
+
+                    // Ensure coordinates are within canvas bounds
+                    const safeX = Math.max(0, Math.min(x, canvas.width));
+                    const safeY = Math.max(0, Math.min(y, canvas.height));
+                    const safeWidth = Math.min(width, canvas.width - safeX);
+                    const safeHeight = Math.min(height, canvas.height - safeY);
+
+                    // Draw bounding box
+                    ctx.strokeStyle = metadata.color;
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(safeX, safeY, safeWidth, safeHeight);
+
+                    // Calculate label position (prefer top-left, fallback to bottom)
+                    const labelText = [
+                        `${metadata.brand}`,
+                        `${metadata.title}`,
+                        metadata.price ? `${metadata.price}` : '',
+                        `${metadata.description}`
+                    ].filter(Boolean);
+
+                    ctx.font = '14px Arial';
+                    const textMetrics = ctx.measureText(labelText[0]);
+                    const labelWidth = Math.max(...labelText.map(text => ctx.measureText(text).width)) + 20;
+                    const labelHeight = labelText.length * 20 + 10;
+
+                    // Determine if label should go on top or bottom
+                    const hasSpaceOnTop = safeY > labelHeight;
+                    const labelY = hasSpaceOnTop ? safeY - labelHeight : safeY + safeHeight;
+                    const labelX = Math.min(safeX, canvas.width - labelWidth);
+
+                    // Draw label background
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
+
+                    // Draw label text
+                    ctx.fillStyle = '#FFFFFF';
+                    labelText.forEach((text, index) => {
+                        ctx.fillText(text, labelX + 10, labelY + 20 + (index * 20));
+                    });
+                });
+            }, []);
+
+            // Initialize detection loop
             React.useEffect(() => {
                 let animationFrameId;
-                let lastTime = performance.now();
-                let isActive = true;
 
                 const startDetection = () => {
-                    if (!isActive) return;
-                    
-                    const now = performance.now();
-                    const elapsed = now - lastTime;
-
-                    if (elapsed >= frameInterval) {
-                        lastTime = now;
-                        animationFrameId = requestAnimationFrame(detectObjects);
-                    } else {
-                        animationFrameId = requestAnimationFrame(startDetection);
-                    }
+                    animationFrameId = requestAnimationFrame(detectObjects);
                 };
 
                 startDetection();
 
                 return () => {
-                    isActive = false;
                     if (animationFrameId) {
                         cancelAnimationFrame(animationFrameId);
                     }
                 };
             }, [detectObjects]);
 
-            // Update FPS display
+            // FPS counter
             React.useEffect(() => {
-                const updateFps = () => {
-                    setFps(fpsRef.current);
-                };
+                const updateFPS = () => {
+                    const now = performance.now();
+                    const elapsed = now - lastTimeRef.current;
+                    frameCountRef.current++;
 
-                const fpsInterval = setInterval(updateFps, 1000);
-                return () => clearInterval(fpsInterval);
+                    if (elapsed >= 1000) {
+                        setFps(Math.round((frameCountRef.current * 1000) / elapsed));
+                        frameCountRef.current = 0;
+                        lastTimeRef.current = now;
+                    }
+                    requestAnimationFrame(updateFPS);
+                };
+                requestAnimationFrame(updateFPS);
             }, []);
 
             // Update loading step
