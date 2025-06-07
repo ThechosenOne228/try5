@@ -515,102 +515,96 @@
                 );
             };
 
-            // Track objects across frames
-            const trackObjects = (newDetections) => {
-                const currentTracks = new Map(objectTracksRef.current);
-                const matchedTracks = new Set();
-                const unmatchedDetections = [];
-
-                // Match new detections with existing tracks
-                newDetections.forEach((detection, detectionIndex) => {
-                    let bestMatch = null;
-                    let bestIoU = 0.3; // Minimum IoU threshold
-
-                    currentTracks.forEach((track, trackId) => {
-                        const iou = calculateIoU(detection.bbox, track.lastBbox);
-                        if (iou > bestIoU) {
-                            bestIoU = iou;
-                            bestMatch = trackId;
-                        }
-                    });
-
-                    if (bestMatch) {
-                        // Update existing track
-                        const track = currentTracks.get(bestMatch);
-                        const smoothedBbox = smoothBoundingBox(detection.bbox, track.lastBbox);
-                        currentTracks.set(bestMatch, {
-                            ...track,
-                            lastBbox: smoothedBbox,
-                            confidence: detection.score,
-                            class: detection.class,
-                            age: track.age + 1,
-                            lastSeen: frameCountRef.current
-                        });
-                        matchedTracks.add(bestMatch);
-                    } else {
-                        unmatchedDetections.push(detectionIndex);
-                    }
-                });
-
-                // Remove old tracks
-                currentTracks.forEach((track, trackId) => {
-                    if (!matchedTracks.has(trackId) && 
-                        frameCountRef.current - track.lastSeen > 30) { // Remove after 30 frames
-                        currentTracks.delete(trackId);
-                    }
-                });
-
-                // Create new tracks for unmatched detections
-                unmatchedDetections.forEach(detectionIndex => {
-                    const detection = newDetections[detectionIndex];
-                    const trackId = `track_${Date.now()}_${detectionIndex}`;
-                    currentTracks.set(trackId, {
-                        id: trackId,
-                        lastBbox: detection.bbox,
-                        confidence: detection.score,
-                        class: detection.class,
-                        age: 1,
-                        lastSeen: frameCountRef.current
-                    });
-                });
-
-                objectTracksRef.current = currentTracks;
-                return Array.from(currentTracks.values());
-            };
-
-            // Mock product metadata
+            // Mock product metadata with more details
             const mockProductData = {
                 'person': {
                     title: 'Person',
                     description: 'Human detected',
-                    color: '#FF0000'
+                    color: '#FF0000',
+                    brand: 'Human'
                 },
                 'car': {
                     title: 'Vehicle',
                     description: 'Automobile detected',
-                    color: '#0000FF'
+                    color: '#0000FF',
+                    brand: 'Vehicle'
                 },
                 'shoe': {
                     title: 'Nike Air Max 90',
-                    description: 'Classic sneaker',
+                    description: 'Classic sneaker with Air cushioning',
                     price: '$129.99',
-                    color: '#00FF00'
+                    color: '#00FF00',
+                    brand: 'Nike'
                 },
                 'cell phone': {
                     title: 'iPhone 14 Pro',
-                    description: 'Latest smartphone',
+                    description: 'Latest smartphone with A16 chip',
                     price: '$999.99',
-                    color: '#FF00FF'
+                    color: '#FF00FF',
+                    brand: 'Apple'
                 },
                 'laptop': {
                     title: 'MacBook Pro',
-                    description: 'Professional laptop',
+                    description: 'Professional laptop with M2 chip',
                     price: '$1999.99',
-                    color: '#FFFF00'
+                    color: '#FFFF00',
+                    brand: 'Apple'
                 }
             };
 
-            // Draw detection overlays
+            // Object expiry settings
+            const OBJECT_EXPIRY_FRAMES = 30; // ~1 second at 30fps
+            const objectLastSeenRef = React.useRef(new Map());
+
+            // Track objects with expiry
+            const trackObjects = React.useCallback((predictions) => {
+                const currentTracks = new Map(objectTracksRef.current);
+                const currentTime = Date.now();
+
+                // Update last seen time for all current detections
+                predictions.forEach(pred => {
+                    const key = `${pred.class}-${pred.bbox.join(',')}`;
+                    objectLastSeenRef.current.set(key, currentTime);
+                });
+
+                // Remove expired objects
+                for (const [key, lastSeen] of objectLastSeenRef.current) {
+                    if (currentTime - lastSeen > OBJECT_EXPIRY_FRAMES * (1000 / 30)) {
+                        objectLastSeenRef.current.delete(key);
+                        currentTracks.delete(key);
+                    }
+                }
+
+                // Update tracks with new predictions
+                predictions.forEach(pred => {
+                    const key = `${pred.class}-${pred.bbox.join(',')}`;
+                    const existingTrack = currentTracks.get(key);
+                    
+                    if (existingTrack) {
+                        // Update existing track
+                        currentTracks.set(key, {
+                            ...existingTrack,
+                            lastBbox: pred.bbox,
+                            confidence: pred.score,
+                            age: existingTrack.age + 1
+                        });
+                    } else {
+                        // Create new track
+                        currentTracks.set(key, {
+                            id: key,
+                            class: pred.class,
+                            lastBbox: pred.bbox,
+                            confidence: pred.score,
+                            age: 0
+                        });
+                    }
+                });
+
+                objectTracksRef.current = currentTracks;
+                return Array.from(currentTracks.values());
+            }, []);
+
+            // Draw detection overlays with enhanced labels
             const drawOverlays = React.useCallback((detections) => {
                 if (!overlayContextRef.current || !detections) return;
 
@@ -631,7 +625,8 @@
                     const metadata = mockProductData[detection.class] || {
                         title: detection.class,
                         description: 'Object detected',
-                        color: '#FFFFFF'
+                        color: '#FFFFFF',
+                        brand: detection.class
                     };
 
                     // Ensure coordinates are within canvas bounds
@@ -640,34 +635,39 @@
                     const safeWidth = Math.min(width, canvas.width - safeX);
                     const safeHeight = Math.min(height, canvas.height - safeY);
 
-                    // Draw bounding box
-                    ctx.strokeStyle = metadata.color;
+                    // Draw bounding box with fade effect based on age
+                    const alpha = Math.min(1, 0.3 + (detection.age / 10));
+                    ctx.strokeStyle = `${metadata.color}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`;
                     ctx.lineWidth = 2;
                     ctx.strokeRect(safeX, safeY, safeWidth, safeHeight);
 
-                    // Calculate label position
-                    const labelY = Math.max(0, safeY - 60);
-                    const labelText = `${metadata.title} (${Math.round(detection.confidence * 100)}%)`;
-                    ctx.font = '14px Arial';
-                    const textMetrics = ctx.measureText(labelText);
-                    const labelWidth = textMetrics.width + 20;
-                    const labelHeight = 60;
+                    // Calculate label position (prefer top-left, fallback to bottom)
+                    const labelText = [
+                        `${metadata.brand}`,
+                        `${metadata.title}`,
+                        metadata.price ? `${metadata.price}` : '',
+                        `${metadata.description}`
+                    ].filter(Boolean);
 
-                    // Ensure label stays within canvas bounds
+                    ctx.font = '14px Arial';
+                    const textMetrics = ctx.measureText(labelText[0]);
+                    const labelWidth = Math.max(...labelText.map(text => ctx.measureText(text).width)) + 20;
+                    const labelHeight = labelText.length * 20 + 10;
+
+                    // Determine if label should go on top or bottom
+                    const hasSpaceOnTop = safeY > labelHeight;
+                    const labelY = hasSpaceOnTop ? safeY - labelHeight : safeY + safeHeight;
                     const labelX = Math.min(safeX, canvas.width - labelWidth);
 
-                    // Draw label background
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    // Draw label background with fade effect
+                    ctx.fillStyle = `rgba(0, 0, 0, ${alpha * 0.7})`;
                     ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
 
                     // Draw label text
                     ctx.fillStyle = '#FFFFFF';
-                    ctx.fillText(labelText, labelX + 10, labelY + 20);
-                    
-                    if (metadata.price) {
-                        ctx.fillText(metadata.price, labelX + 10, labelY + 40);
-                    }
-                    ctx.fillText(metadata.description, labelX + 10, labelY + 60);
+                    labelText.forEach((text, index) => {
+                        ctx.fillText(text, labelX + 10, labelY + 20 + (index * 20));
+                    });
                 });
             }, []);
 
@@ -912,32 +912,80 @@
             };
 
             // Handle camera switch
-            const handleCameraSwitch = async () => {
+            const handleCameraSwitch = React.useCallback(async () => {
+                if (isTransitioning) return;
+
                 try {
                     setIsTransitioning(true);
-                    const transitionElement = document.getElementById('camera-transition');
-                    transitionElement.classList.add('active');
-                    
-                    // Wait for transition
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    
+                    setLoadingStep('Switching camera...');
+                    setLoadingProgress(50);
+
+                    // Stop all tracks
+                    if (videoRef.srcObject) {
+                        videoRef.srcObject.getTracks().forEach(track => track.stop());
+                    }
+
+                    // Clear detection state
+                    setDetections([]);
+                    objectTracksRef.current.clear();
+                    objectLastSeenRef.current.clear();
+
+                    // Switch camera
                     const newFacingMode = isFrontCamera ? 'environment' : 'user';
-                    const newVideoRef = await initWebcam(newFacingMode);
-                    setVideoRef(newVideoRef);
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: newFacingMode }
+                    });
+
+                    // Update video source
+                    videoRef.srcObject = stream;
+                    await videoRef.play();
+
+                    // Update state
                     setIsFrontCamera(!isFrontCamera);
-                    
-                    // Wait for video to be ready
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    
-                    transitionElement.classList.remove('active');
-                    setIsTransitioning(false);
+                    setLoadingProgress(100);
+                    setLoadingStep('Camera switched successfully!');
+
+                    // Reset loading state after a short delay
+                    setTimeout(() => {
+                        setIsTransitioning(false);
+                        setLoadingStep('');
+                        setLoadingProgress(0);
+                    }, 1000);
+
                 } catch (err) {
-                    const errorMsg = 'Failed to switch camera: ' + err.message;
-                    debugLog(errorMsg);
-                    setError(errorMsg);
-                    setIsTransitioning(false);
+                    console.error('Camera switch error:', err);
+                    setLoadingStep('Failed to switch camera. Please try again.');
+                    setTimeout(() => {
+                        setIsTransitioning(false);
+                        setLoadingStep('');
+                        setLoadingProgress(0);
+                    }, 2000);
                 }
-            };
+            }, [isFrontCamera, isTransitioning, videoRef]);
+
+            // Initialize webcam with proper error handling
+            const initWebcam = React.useCallback(async () => {
+                try {
+                    setLoadingStep('Initializing camera...');
+                    setLoadingProgress(20);
+
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'user' }
+                    });
+
+                    if (videoRef) {
+                        videoRef.srcObject = stream;
+                        await videoRef.play();
+                        setLoadingProgress(40);
+                        setLoadingStep('Camera initialized successfully!');
+                    }
+
+                } catch (err) {
+                    console.error('Webcam initialization error:', err);
+                    setLoadingStep('Failed to access camera. Please check permissions.');
+                    throw err;
+                }
+            }, [videoRef]);
 
             if (error) {
                 return React.createElement('div', { className: 'fixed inset-0 flex items-center justify-center bg-black bg-opacity-50' },
