@@ -91,11 +91,15 @@
             display: flex;
             gap: 10px;
             z-index: 1000;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 12px;
+            backdrop-filter: blur(5px);
         }
         .camera-button {
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(255, 255, 255, 0.1);
             color: white;
-            border: none;
+            border: 2px solid rgba(255, 255, 255, 0.3);
             border-radius: 50%;
             width: 50px;
             height: 50px;
@@ -104,9 +108,12 @@
             justify-content: center;
             cursor: pointer;
             transition: all 0.3s ease;
+            font-size: 1.5rem;
         }
         .camera-button:hover {
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: scale(1.05);
         }
         .camera-button:active {
             transform: scale(0.95);
@@ -114,6 +121,11 @@
         .camera-button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+        .camera-button.active {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: white;
         }
         .detection-label {
             position: absolute;
@@ -616,13 +628,13 @@
                 React.createElement('div', { className: 'camera-controls' },
                     React.createElement('button', {
                         onClick: () => handleCameraSwitch('user'),
-                        className: 'camera-button',
+                        className: `camera-button ${isFrontCamera ? 'active' : ''}`,
                         title: 'Switch to front camera',
                         disabled: isTransitioning || isFrontCamera
                     }, '📱'),
                     React.createElement('button', {
                         onClick: () => handleCameraSwitch('environment'),
-                        className: 'camera-button',
+                        className: `camera-button ${!isFrontCamera ? 'active' : ''}`,
                         title: 'Switch to back camera',
                         disabled: isTransitioning || !isFrontCamera
                     }, '📷')
