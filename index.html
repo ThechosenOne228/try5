@@ -88,8 +88,6 @@
             position: fixed;
             top: 20px;
             right: 20px;
-            display: flex;
-            gap: 10px;
             z-index: 1000;
             background: rgba(0, 0, 0, 0.5);
             padding: 10px;
@@ -519,7 +517,7 @@
                         const poseModel = await poseDetection.createDetector(
                             poseDetection.SupportedModels.MoveNet,
                             {
-                                modelType: 'lightning'
+                                modelType: 'singlepose.lightning'
                             }
                         );
                         poseModelRef.current = poseModel;
@@ -569,7 +567,7 @@
             }, [isModelLoading, error, videoRef, isTransitioning]);
 
             // Handle camera switch
-            const handleCameraSwitch = async (facingMode) => {
+            const handleCameraSwitch = async () => {
                 try {
                     setIsTransitioning(true);
                     const transitionElement = document.getElementById('camera-transition');
@@ -577,9 +575,10 @@
                     
                     await new Promise(resolve => setTimeout(resolve, 500));
                     
-                    const newVideoRef = await initWebcam(facingMode);
+                    const newFacingMode = isFrontCamera ? 'environment' : 'user';
+                    const newVideoRef = await initWebcam(newFacingMode);
                     setVideoRef(newVideoRef);
-                    setIsFrontCamera(facingMode === 'user');
+                    setIsFrontCamera(!isFrontCamera);
                     
                     await new Promise(resolve => setTimeout(resolve, 100));
                     
@@ -627,17 +626,11 @@
                 // Camera Controls
                 React.createElement('div', { className: 'camera-controls' },
                     React.createElement('button', {
-                        onClick: () => handleCameraSwitch('user'),
-                        className: `camera-button ${isFrontCamera ? 'active' : ''}`,
-                        title: 'Switch to front camera',
-                        disabled: isTransitioning || isFrontCamera
-                    }, '📱'),
-                    React.createElement('button', {
-                        onClick: () => handleCameraSwitch('environment'),
-                        className: `camera-button ${!isFrontCamera ? 'active' : ''}`,
-                        title: 'Switch to back camera',
-                        disabled: isTransitioning || !isFrontCamera
-                    }, '📷')
+                        onClick: handleCameraSwitch,
+                        className: 'camera-button',
+                        title: `Switch to ${isFrontCamera ? 'back' : 'front'} camera`,
+                        disabled: isTransitioning
+                    }, isFrontCamera ? '📷' : '📱')
                 ),
                 // Pose Points and Lines
                 poses.map((pose, poseIndex) => 
