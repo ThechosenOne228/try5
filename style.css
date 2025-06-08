@@ -1,0 +1,39 @@
+.form-checkbox {
+    @apply rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50;
+}
+
+/* Ensure video and canvas maintain aspect ratio */
+#video, #canvas {
+    aspect-ratio: 16/9;
+    object-fit: cover;
+}
+
+/* Style for detection boxes */
+.detection-box {
+    position: absolute;
+    border: 2px solid;
+    pointer-events: none;
+}
+
+/* Style for metadata overlay */
+.metadata-overlay {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* Loading animation */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.loading {
+    animation: pulse 1.5s infinite;
+} 

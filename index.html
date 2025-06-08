@@ -3,657 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Share My Fit</title>
-    <!-- Tailwind CSS -->
+    <title>Real-time Object Detection</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React and ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- Babel for JSX/TypeScript -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- TensorFlow.js -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
-    <!-- Font Awesome for icons -->
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <!-- Add Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background: #000;
-        }
-        #video-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 1;
-        }
-        #video-feed {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transition: opacity 0.5s ease;
-        }
-        #video-feed.fade-out {
-            opacity: 0;
-        }
-        #app-root {
-            position: relative;
-            z-index: 2;
-        }
-        #error-message {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 20px;
-            border-radius: 8px;
-            z-index: 1000;
-            max-width: 80%;
-            text-align: center;
-        }
-        #debug-info {
-            position: fixed;
-            bottom: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 10px;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 12px;
-            z-index: 1000;
-        }
-        .loading-spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .loading-container {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 30px;
-            border-radius: 12px;
-            text-align: center;
-            z-index: 1000;
-            min-width: 300px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .loading-progress {
-            width: 100%;
-            height: 6px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 3px;
-            margin: 15px 0;
-            overflow: hidden;
-        }
-        .loading-progress-bar {
-            height: 100%;
-            background: #3498db;
-            border-radius: 3px;
-            transition: width 0.3s ease;
-        }
-        .loading-steps {
-            text-align: left;
-            margin-top: 15px;
-            font-size: 14px;
-        }
-        .loading-step {
-            margin: 8px 0;
-            opacity: 0.5;
-            transition: opacity 0.3s ease;
-        }
-        .loading-step.active {
-            opacity: 1;
-            color: #3498db;
-        }
-        .loading-step.completed {
-            opacity: 0.7;
-            color: #2ecc71;
-        }
-        .camera-switch {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.5);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 1000;
-            transition: all 0.3s ease;
-        }
-        .camera-switch:hover {
-            background: rgba(0, 0, 0, 0.7);
-        }
-        .camera-switch:active {
-            transform: scale(0.95);
-        }
-        .detection-label {
-            position: absolute;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 8px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.3s ease;
-            border: 2px solid #fff;
-        }
-        .detection-label:hover {
-            background: rgba(0, 0, 0, 0.9);
-            transform: scale(1.05);
-        }
-        .brand-logo {
-            width: 24px;
-            height: 24px;
-            object-fit: contain;
-        }
-        .camera-transition {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: #000;
-            z-index: 999;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.5s ease;
-        }
-        .camera-transition.active {
-            opacity: 1;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
-<body>
-    <div id="video-container">
-        <video id="video-feed" autoplay playsinline></video>
+<body class="bg-gray-900 text-white min-h-screen">
+    <div class="container mx-auto p-4">
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator" class="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="text-center">
+                <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+                <p class="mt-4 text-xl">Loading model...</p>
+            </div>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50"></div>
+
+        <div class="relative">
+            <!-- Video and Canvas Container -->
+            <div class="relative w-full max-w-4xl mx-auto">
+                <video id="video" class="w-full rounded-lg" autoplay playsinline></video>
+                <canvas id="canvas" class="absolute top-0 left-0 w-full h-full"></canvas>
+                
+                <!-- Camera Switch Button (Floating) -->
+                <button id="switchCamera" class="absolute bottom-4 right-4 bg-blue-600 hover:bg-blue-700 p-3 rounded-full shadow-lg transition-transform hover:scale-110">
+                    <i class="fas fa-camera-rotate text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Controls -->
+            <div class="mt-4 flex flex-wrap gap-2 justify-center">
+                <button id="captureFrame" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded flex items-center gap-2">
+                    <i class="fas fa-camera"></i>
+                    <span>Capture Frame</span>
+                </button>
+                <button id="downloadResults" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded flex items-center gap-2">
+                    <i class="fas fa-download"></i>
+                    <span>Download Results</span>
+                </button>
+            </div>
+
+            <!-- Toggle Controls -->
+            <div class="mt-4 flex flex-wrap gap-2 justify-center">
+                <label class="flex items-center space-x-2">
+                    <input type="checkbox" id="showBrand" checked class="form-checkbox">
+                    <span>Brand</span>
+                </label>
+                <label class="flex items-center space-x-2">
+                    <input type="checkbox" id="showDescription" checked class="form-checkbox">
+                    <span>Description</span>
+                </label>
+                <label class="flex items-center space-x-2">
+                    <input type="checkbox" id="showPrice" checked class="form-checkbox">
+                    <span>Price</span>
+                </label>
+            </div>
+
+            <!-- Status -->
+            <div id="status" class="mt-4 text-center text-gray-400"></div>
+        </div>
     </div>
-    <div id="app-root"></div>
-    <div id="error-message" style="display: none;"></div>
-    <div id="debug-info"></div>
-    <div id="camera-transition" class="camera-transition"></div>
 
-    <!-- App Scripts -->
-    <script type="text/babel">
-        // Brand logos mapping
-        const brandLogos = {
-            // Sportswear
-            'nike': 'https://upload.wikimedia.org/wikipedia/commons/a/a6/Logo_NIKE.svg',
-            'adidas': 'https://upload.wikimedia.org/wikipedia/commons/2/20/Adidas_Logo.svg',
-            'puma': 'https://upload.wikimedia.org/wikipedia/commons/4/44/Puma_logo.svg',
-            'reebok': 'https://upload.wikimedia.org/wikipedia/commons/3/31/Reebok_2019_logo.svg',
-            'under armour': 'https://upload.wikimedia.org/wikipedia/commons/7/7c/Under_Armour_logo.svg',
-            'new balance': 'https://upload.wikimedia.org/wikipedia/commons/1/1d/New_Balance_logo.svg',
-            'converse': 'https://upload.wikimedia.org/wikipedia/commons/3/3b/Converse_logo.svg',
-            'vans': 'https://upload.wikimedia.org/wikipedia/commons/3/36/Vans-logo.svg',
-            'jordan': 'https://upload.wikimedia.org/wikipedia/commons/a/a6/Logo_NIKE.svg',
-            'asics': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Asics_logo.svg',
-            'fila': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Fila_logo.svg',
-            'mizuno': 'https://upload.wikimedia.org/wikipedia/commons/9/9c/Mizuno_logo.svg',
-            'brooks': 'https://upload.wikimedia.org/wikipedia/commons/8/8a/Brooks_logo.svg',
-            'saucony': 'https://upload.wikimedia.org/wikipedia/commons/7/7c/Saucony_logo.svg',
-            'skechers': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Skechers_logo.svg',
-            'lululemon': 'https://upload.wikimedia.org/wikipedia/commons/3/3c/Lululemon_logo.svg',
-            'athleta': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Athleta_logo.svg',
-            'gymshark': 'https://upload.wikimedia.org/wikipedia/commons/8/8d/Gymshark_logo.svg',
-            'alphalete': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Alphalete_logo.svg',
-            'nobull': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/NoBull_logo.svg',
-
-            // Luxury
-            'gucci': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Gucci_logo.svg',
-            'louis vuitton': 'https://upload.wikimedia.org/wikipedia/commons/9/9f/Louis_Vuitton_logo.svg',
-            'prada': 'https://upload.wikimedia.org/wikipedia/commons/3/3e/Prada_logo.svg',
-            'versace': 'https://upload.wikimedia.org/wikipedia/commons/8/89/Versace_logo.svg',
-            'dior': 'https://upload.wikimedia.org/wikipedia/commons/7/7f/Christian_Dior_logo.svg',
-            'chanel': 'https://upload.wikimedia.org/wikipedia/commons/7/7a/Chanel_logo.svg',
-            'hermes': 'https://upload.wikimedia.org/wikipedia/commons/4/4c/Herm%C3%A8s_logo.svg',
-            'burberry': 'https://upload.wikimedia.org/wikipedia/commons/8/8d/Burberry_logo.svg',
-            'fendi': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Fendi_logo.svg',
-            'balenciaga': 'https://upload.wikimedia.org/wikipedia/commons/4/4b/Balenciaga_logo.svg',
-            'givenchy': 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Givenchy_logo.svg',
-            'yves saint laurent': 'https://upload.wikimedia.org/wikipedia/commons/3/3c/Yves_Saint_Laurent_logo.svg',
-            'bottega veneta': 'https://upload.wikimedia.org/wikipedia/commons/5/5a/Bottega_Veneta_logo.svg',
-            'valentino': 'https://upload.wikimedia.org/wikipedia/commons/9/9a/Valentino_logo.svg',
-            'dolce & gabbana': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Dolce_%26_Gabbana_logo.svg',
-            'alexander mcqueen': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Alexander_McQueen_logo.svg',
-            'balmain': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Balmain_logo.svg',
-            'celine': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Celine_logo.svg',
-            'loewe': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Loewe_logo.svg',
-            'marni': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Marni_logo.svg',
-
-            // Streetwear & Fashion
-            'supreme': 'https://upload.wikimedia.org/wikipedia/commons/2/28/Supreme_logo.svg',
-            'off-white': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Off-White_logo.svg',
-            'palace': 'https://upload.wikimedia.org/wikipedia/commons/8/8d/Palace_Skateboards_logo.svg',
-            'stussy': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Stussy_logo.svg',
-            'bape': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/BAPE_logo.svg',
-            'kith': 'https://upload.wikimedia.org/wikipedia/commons/4/4c/Kith_logo.svg',
-            'fear of god': 'https://upload.wikimedia.org/wikipedia/commons/8/8d/Fear_of_God_logo.svg',
-            'yeezy': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Yeezy_logo.svg',
-            'stone island': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Stone_Island_logo.svg',
-            'moncler': 'https://upload.wikimedia.org/wikipedia/commons/4/4c/Moncler_logo.svg',
-            'acne studios': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Acne_Studios_logo.svg',
-            'alyx': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Alyx_logo.svg',
-            'ambush': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Ambush_logo.svg',
-            'heron preston': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Heron_Preston_logo.svg',
-            'martine rose': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Martine_Rose_logo.svg',
-
-            // Fast Fashion
-            'zara': 'https://upload.wikimedia.org/wikipedia/commons/5/53/Zara_logo.svg',
-            'h&m': 'https://upload.wikimedia.org/wikipedia/commons/5/53/H%26M-Logo.svg',
-            'uniqlo': 'https://upload.wikimedia.org/wikipedia/commons/9/92/UNIQLO_logo.svg',
-            'forever 21': 'https://upload.wikimedia.org/wikipedia/commons/8/8d/Forever_21_logo.svg',
-            'topshop': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Topshop_logo.svg',
-            'asos': 'https://upload.wikimedia.org/wikipedia/commons/0/0c/ASOS_logo.svg',
-            'boohoo': 'https://upload.wikimedia.org/wikipedia/commons/4/4c/Boohoo_logo.svg',
-            'missguided': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Missguided_logo.svg',
-            'pretty little thing': 'https://upload.wikimedia.org/wikipedia/commons/5/5a/PrettyLittleThing_logo.svg',
-            'nasty gal': 'https://upload.wikimedia.org/wikipedia/commons/8/8d/Nasty_Gal_logo.svg',
-            'fashion nova': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Fashion_Nova_logo.svg',
-            'revolve': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Revolve_logo.svg',
-            'nordstrom': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Nordstrom_logo.svg',
-            'urban outfitters': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Urban_Outfitters_logo.svg',
-            'anthropologie': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Anthropologie_logo.svg',
-
-            // Denim & Casual
-            'levi\'s': 'https://upload.wikimedia.org/wikipedia/commons/2/21/Levi%27s_logo.svg',
-            'gap': 'https://upload.wikimedia.org/wikipedia/commons/7/7a/Gap_logo.svg',
-            'calvin klein': 'https://upload.wikimedia.org/wikipedia/commons/5/5c/Calvin_Klein_logo.svg',
-            'tommy hilfiger': 'https://upload.wikimedia.org/wikipedia/commons/5/5c/Tommy_Hilfiger_Logo.svg',
-            'ralph lauren': 'https://upload.wikimedia.org/wikipedia/commons/d/d6/Ralph_Lauren_logo.svg',
-            'wrangler': 'https://upload.wikimedia.org/wikipedia/commons/8/8d/Wrangler_logo.svg',
-            'lee': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Lee_logo.svg',
-            'diesel': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Diesel_logo.svg',
-            'guess': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Guess_logo.svg',
-            'hollister': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Hollister_logo.svg',
-            'abercrombie': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Abercrombie_logo.svg',
-            'american eagle': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/American_Eagle_logo.svg',
-            'banana republic': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Banana_Republic_logo.svg',
-            'j.crew': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/J.Crew_logo.svg',
-            'madewell': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Madewell_logo.svg',
-
-            // Accessories
-            'ray-ban': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Ray-Ban_logo.svg',
-            'oakley': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Oakley_logo.svg',
-            'swatch': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Swatch_logo.svg',
-            'fossil': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Fossil_logo.svg',
-            'michael kors': 'https://upload.wikimedia.org/wikipedia/commons/5/5c/Michael_Kors_logo.svg',
-            'kate spade': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Kate_Spade_logo.svg',
-            'coach': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Coach_logo.svg',
-            'tory burch': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Tory_Burch_logo.svg',
-            'longchamp': 'https://upload.wikimedia.org/wikipedia/commons/5/5c/Longchamp_logo.svg',
-            'furla': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Furla_logo.svg',
-            'marc jacobs': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Marc_Jacobs_logo.svg',
-            'rebecca minkoff': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Rebecca_Minkoff_logo.svg',
-            'dooney & bourke': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Dooney_%26_Bourke_logo.svg',
-            'tumi': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Tumi_logo.svg',
-            'samsonite': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Samsonite_logo.svg',
-
-            // Watches
-            'rolex': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Rolex_logo.svg',
-            'omega': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Omega_logo.svg',
-            'cartier': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Cartier_logo.svg',
-            'tag heuer': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Tag_Heuer_logo.svg',
-            'breitling': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Breitling_logo.svg',
-            'iwc': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/IWC_logo.svg',
-            'jaeger-lecoultre': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Jaeger-LeCoultre_logo.svg',
-            'panerai': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Panerai_logo.svg',
-            'hublot': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Hublot_logo.svg',
-            'audemars piguet': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Audemars_Piguet_logo.svg',
-            'patek philippe': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Patek_Philippe_logo.svg',
-            'vacheron constantin': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Vacheron_Constantin_logo.svg',
-            'breguet': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Breguet_logo.svg',
-            'zenith': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Zenith_logo.svg',
-            'tissot': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Tissot_logo.svg',
-
-            // Jewelry
-            'tiffany & co': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Tiffany_%26_Co_logo.svg',
-            'cartier': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Cartier_logo.svg',
-            'bulgari': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Bulgari_logo.svg',
-            'van cleef & arpels': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Van_Cleef_%26_Arpels_logo.svg',
-            'david yurman': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/David_Yurman_logo.svg',
-            'pandora': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Pandora_logo.svg',
-            'swarovski': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Swarovski_logo.svg',
-            'kendra scott': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Kendra_Scott_logo.svg',
-            'gorjana': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Gorjana_logo.svg',
-            'alex and ani': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Alex_and_Ani_logo.svg',
-            'james avery': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/James_Avery_logo.svg',
-            'john hardy': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/John_Hardy_logo.svg',
-            'monica vinader': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Monica_Vinader_logo.svg',
-            'mejuri': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Mejuri_logo.svg',
-            'catbird': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Catbird_logo.svg',
-
-            // Footwear
-            'dr. martens': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Dr._Martens_logo.svg',
-            'timberland': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Timberland_logo.svg',
-            'clarks': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Clarks_logo.svg',
-            'ugg': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/UGG_logo.svg',
-            'birkenstock': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Birkenstock_logo.svg',
-            'crocs': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Crocs_logo.svg',
-            'teva': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Teva_logo.svg',
-            'merrell': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Merrell_logo.svg',
-            'keen': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/KEEN_logo.svg',
-            'salomon': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Salomon_logo.svg',
-            'hoka': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Hoka_logo.svg',
-            'on running': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/On_Running_logo.svg',
-            'allbirds': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Allbirds_logo.svg',
-            'veja': 'https://upload.wikimedia.org/wikipedia/commons/7/7d/Veja_logo.svg',
-            'common projects': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Common_Projects_logo.svg'
-        };
-
-        // Function to detect brand from class name
-        function detectBrand(className) {
-            const lowerClassName = className.toLowerCase();
-            for (const [brand, _] of Object.entries(brandLogos)) {
-                if (lowerClassName.includes(brand)) {
-                    return brand;
-                }
-            }
-            return null;
-        }
-
-        // Debug logging function
-        function debugLog(message) {
-            console.log(message);
-            const debugInfo = document.getElementById('debug-info');
-            debugInfo.textContent = message;
-        }
-
-        // Error handling function
-        function showError(message) {
-            console.error(message);
-            const errorDiv = document.getElementById('error-message');
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
-        }
-
-        // Check if required libraries are loaded
-        function checkDependencies() {
-            const dependencies = {
-                'React': typeof React !== 'undefined',
-                'ReactDOM': typeof ReactDOM !== 'undefined',
-                'TensorFlow.js': typeof tf !== 'undefined',
-                'COCO-SSD': typeof cocoSsd !== 'undefined'
-            };
-
-            const missing = Object.entries(dependencies)
-                .filter(([_, loaded]) => !loaded)
-                .map(([name]) => name);
-
-            if (missing.length > 0) {
-                throw new Error(`Missing dependencies: ${missing.join(', ')}`);
-            }
-
-            debugLog('All dependencies loaded successfully');
-        }
-
-        // App Component
-        const App = ({ initialVideoRef }) => {
-            const [detections, setDetections] = React.useState([]);
-            const [isModelLoading, setIsModelLoading] = React.useState(true);
-            const [loadingProgress, setLoadingProgress] = React.useState('Initializing...');
-            const [showToast, setShowToast] = React.useState(false);
-            const [error, setError] = React.useState(null);
-            const [isFrontCamera, setIsFrontCamera] = React.useState(true);
-            const [videoRef, setVideoRef] = React.useState(initialVideoRef);
-            const [isTransitioning, setIsTransitioning] = React.useState(false);
-            const modelRef = React.useRef(null);
-
-            // Initialize camera
-            const initCamera = async (facingMode = 'user') => {
-                try {
-                    const constraints = {
-                        video: {
-                            facingMode: facingMode,
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
-                        }
-                    };
-
-                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                    const video = document.createElement('video');
-                    video.srcObject = stream;
-                    video.setAttribute('playsinline', '');
-                    video.setAttribute('autoplay', '');
-                    
-                    // Wait for video to be ready
-                    await new Promise((resolve) => {
-                        video.onloadedmetadata = () => {
-                            video.play().then(resolve);
-                        };
-                    });
-
-                    return video;
-                } catch (err) {
-                    throw new Error('Failed to access camera: ' + err.message);
-                }
-            };
-
-            // Load models
-            React.useEffect(() => {
-                const loadModels = async () => {
-                    try {
-                        setLoadingProgress('Loading TensorFlow.js...');
-                        await tf.ready();
-                        
-                        setLoadingProgress('Loading AI model...');
-                        const model = await cocoSsd.load({
-                            base: 'lite_mobilenet_v2'
-                        });
-                        modelRef.current = model;
-                        
-                        setLoadingProgress('Model loaded successfully!');
-                        setIsModelLoading(false);
-                    } catch (err) {
-                        setError('Failed to load AI model: ' + err.message);
-                        setIsModelLoading(false);
-                    }
-                };
-                loadModels();
-            }, []);
-
-            // Run detection
-            React.useEffect(() => {
-                if (!modelRef.current || !videoRef || isTransitioning) return;
-
-                const detectObjects = async () => {
-                    try {
-                        const predictions = await modelRef.current.detect(videoRef);
-                        setDetections(predictions.filter(p => p.score > 0.5));
-                    } catch (err) {
-                        console.warn('Detection error:', err);
-                    }
-                };
-
-                const interval = setInterval(detectObjects, 100);
-                return () => clearInterval(interval);
-            }, [videoRef, isTransitioning]);
-
-            // Handle camera switch
-            const handleCameraSwitch = async () => {
-                if (isTransitioning) return;
-
-                try {
-                    setIsTransitioning(true);
-                    
-                    // Stop current video stream
-                    if (videoRef && videoRef.srcObject) {
-                        videoRef.srcObject.getTracks().forEach(track => track.stop());
-                    }
-
-                    // Switch camera
-                    const newFacingMode = isFrontCamera ? 'environment' : 'user';
-                    const newVideo = await initCamera(newFacingMode);
-                    setVideoRef(newVideo);
-                    setIsFrontCamera(!isFrontCamera);
-                } catch (err) {
-                    setError('Failed to switch camera: ' + err.message);
-                } finally {
-                    setIsTransitioning(false);
-                }
-            };
-
-            // Handle share
-            const handleShare = () => {
-                try {
-                    const items = detections.map(det => det.class);
-                    if (items.length === 0) {
-                        throw new Error('No items detected');
-                    }
-                    const text = `Today's Fit: ${items.join(', ')}`;
-                    navigator.clipboard.writeText(text);
-                    setShowToast(true);
-                    setTimeout(() => setShowToast(false), 2000);
-                } catch (err) {
-                    setError('Failed to share: ' + err.message);
-                }
-            };
-
-            if (error) {
-                return React.createElement('div', { className: 'error-container' },
-                    React.createElement('h2', null, 'Error'),
-                    React.createElement('p', null, error),
-                    React.createElement('button', {
-                        onClick: () => window.location.reload(),
-                        className: 'retry-button'
-                    }, 'Retry')
-                );
-            }
-
-            return React.createElement('div', { className: 'relative w-full h-screen' },
-                // Video container
-                React.createElement('div', { className: 'video-container' },
-                    videoRef && React.createElement('video', {
-                        ref: videoRef,
-                        className: 'video-feed',
-                        style: {
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover'
-                        }
-                    })
-                ),
-                // Camera switch button
-                React.createElement('button', {
-                    onClick: handleCameraSwitch,
-                    className: 'camera-switch',
-                    disabled: isTransitioning,
-                    title: `Switch to ${isFrontCamera ? 'back' : 'front'} camera`
-                }, isFrontCamera ? '📷' : '📱'),
-                // Detection labels
-                detections.map((detection, index) => {
-                    const brand = detectBrand(detection.class);
-                    return React.createElement('div', {
-                        key: index,
-                        className: 'detection-label',
-                        style: {
-                            left: `${detection.bbox[0]}px`,
-                            top: `${detection.bbox[1]}px`,
-                            width: `${detection.bbox[2]}px`,
-                            height: `${detection.bbox[3]}px`
-                        }
-                    },
-                        React.createElement('div', { className: 'flex flex-col' },
-                            React.createElement('div', { className: 'flex items-center gap-2' },
-                                brand && React.createElement('img', {
-                                    src: brandLogos[brand],
-                                    alt: brand,
-                                    className: 'brand-logo'
-                                }),
-                                React.createElement('span', null, detection.class)
-                            )
-                        )
-                    );
-                }),
-                // Share button
-                React.createElement('button', {
-                    onClick: handleShare,
-                    className: 'share-button',
-                    disabled: detections.length === 0
-                }, 'Share My Fit'),
-                // Loading indicator
-                isModelLoading && React.createElement('div', { className: 'loading-container' },
-                    React.createElement('div', { className: 'loading-spinner' }),
-                    React.createElement('p', { className: 'loading-text' }, loadingProgress)
-                ),
-                // Toast message
-                showToast && React.createElement('div', { className: 'toast' },
-                    'Outfit copied to clipboard!'
-                )
-            );
-        };
-
-        // Initialize app
-        const initApp = async () => {
-            try {
-                debugLog('Initializing app...');
-                checkDependencies();
-                
-                // Initialize camera
-                const constraints = {
-                    video: {
-                        facingMode: 'user',
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    }
-                };
-
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                const videoElement = document.createElement('video');
-                videoElement.srcObject = stream;
-                videoElement.setAttribute('playsinline', '');
-                videoElement.setAttribute('autoplay', '');
-                
-                // Wait for video to be ready
-                await new Promise((resolve) => {
-                    videoElement.onloadedmetadata = () => {
-                        videoElement.play().then(resolve);
-                    };
-                });
-
-                debugLog('Creating React root...');
-                const root = ReactDOM.createRoot(document.getElementById('app-root'));
-                root.render(React.createElement(App, { initialVideoRef: videoElement }));
-            } catch (err) {
-                const errorMsg = 'Failed to initialize app: ' + err.message;
-                debugLog(errorMsg);
-                document.getElementById('app-root').innerHTML = `
-                    <div class="error-container">
-                        <h2>Error</h2>
-                        <p>${errorMsg}</p>
-                        <button onclick="window.location.reload()" class="retry-button">Retry</button>
-                    </div>
-                `;
-            }
-        };
-
-        // Start the app
-        initApp();
-    </script>
+    <script src="app.js"></script>
 </body>
 </html> 
