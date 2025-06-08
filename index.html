@@ -3,54 +3,375 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-time Object Detection</title>
+    <title>AI Fashion Detector</title>
+    <!-- TailwindCSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <!-- TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+    <!-- Babel for modern JS -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        .video-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            overflow: hidden;
+        }
+        .video-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .detection-box {
+            position: absolute;
+            border: 2px solid #00ff00;
+            background-color: rgba(0, 255, 0, 0.1);
+            pointer-events: none;
+        }
+        .detection-label {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            pointer-events: auto;
+        }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            display: none;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen">
-    <div class="container mx-auto p-4">
-        <h1 class="text-3xl font-bold mb-4">Real-time Object Detection</h1>
-        
-        <!-- Video and Canvas Container -->
-        <div class="relative mb-4">
-            <video id="video" class="hidden" playsinline></video>
-            <canvas id="canvas" class="w-full max-w-4xl border border-gray-700"></canvas>
+<body class="bg-black text-white">
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="flex flex-col items-center gap-4">
+            <div class="spinner"></div>
+            <p class="text-xl">Loading AI Model...</p>
         </div>
-
-        <!-- Controls -->
-        <div class="flex flex-wrap gap-4 mb-4">
-            <button id="startBtn" class="bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded">
-                Start Camera
-            </button>
-            <button id="captureBtn" class="bg-green-500 hover:bg-green-600 px-4 py-2 rounded" disabled>
-                📸 Capture
-            </button>
-            <button id="exportBtn" class="bg-purple-500 hover:bg-purple-600 px-4 py-2 rounded" disabled>
-                ⬇️ Export JSON
-            </button>
-        </div>
-
-        <!-- Toggle Controls -->
-        <div class="flex flex-wrap gap-4 mb-4">
-            <label class="flex items-center gap-2">
-                <input type="checkbox" id="showBrand" checked class="form-checkbox">
-                Brand
-            </label>
-            <label class="flex items-center gap-2">
-                <input type="checkbox" id="showPrice" checked class="form-checkbox">
-                Price
-            </label>
-            <label class="flex items-center gap-2">
-                <input type="checkbox" id="showDescription" checked class="form-checkbox">
-                Description
-            </label>
-        </div>
-
-        <!-- Status -->
-        <div id="status" class="text-sm text-gray-400"></div>
     </div>
 
-    <script src="app.js"></script>
+    <div class="video-container">
+        <video id="videoFeed" class="video-feed" autoplay playsinline></video>
+        <div id="detectionContainer"></div>
+    </div>
+
+    <div class="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-4">
+        <button id="shareButton" class="bg-white text-black px-6 py-3 rounded-full font-semibold hover:bg-gray-200 transition-colors">
+            Share My Fit
+        </button>
+    </div>
+
+    <div id="toast" class="toast">
+        Link copied!
+    </div>
+
+    <script type="text/babel">
+        // Main app logic
+        const videoFeed = document.getElementById('videoFeed');
+        const detectionContainer = document.getElementById('detectionContainer');
+        const shareButton = document.getElementById('shareButton');
+        const toast = document.getElementById('toast');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+
+        let model = null;
+        let isDetecting = false;
+        let lastDetectionTime = 0;
+        const DETECTION_INTERVAL = 100; // ms between detections
+
+        // Initialize webcam
+        async function initWebcam() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'user',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+                videoFeed.srcObject = stream;
+                return new Promise((resolve) => {
+                    videoFeed.onloadedmetadata = () => {
+                        resolve();
+                    };
+                });
+            } catch (error) {
+                console.error('Error accessing webcam:', error);
+                showToast('Error accessing webcam. Please check permissions.');
+            }
+        }
+
+        // Load YOLOv8 model
+        async function loadModel() {
+            try {
+                // Using a pre-converted YOLOv8 model from Hugging Face
+                model = await tf.loadGraphModel('https://huggingface.co/spaces/ultralytics/yolov8/resolve/main/yolov8n.tfjs/model.json');
+                console.log('Model loaded successfully');
+                return true;
+            } catch (error) {
+                console.error('Error loading model:', error);
+                showToast('Error loading AI model. Please refresh the page.');
+                return false;
+            }
+        }
+
+        // Preprocess image for model input
+        function preprocessImage(imageElement) {
+            return tf.tidy(() => {
+                const tensor = tf.browser.fromPixels(imageElement)
+                    .resizeBilinear([640, 640])
+                    .div(255.0)
+                    .expandDims(0);
+                return tensor;
+            });
+        }
+
+        // Process model output
+        function processOutput(output, threshold = 0.5) {
+            const [boxes, scores, classes] = output;
+            const detections = [];
+            
+            for (let i = 0; i < scores.dataSync().length; i++) {
+                if (scores.dataSync()[i] > threshold) {
+                    const bbox = boxes.dataSync().slice(i * 4, (i + 1) * 4);
+                    const classId = classes.dataSync()[i];
+                    const score = scores.dataSync()[i];
+                    
+                    // Convert normalized coordinates to pixel coordinates
+                    const [x1, y1, x2, y2] = bbox.map(coord => coord * videoFeed.width);
+                    
+                    detections.push({
+                        bbox: [x1, y1, x2 - x1, y2 - y1],
+                        label: getClassLabel(classId),
+                        confidence: score
+                    });
+                }
+            }
+            
+            return detections;
+        }
+
+        // Get class label from class ID
+        function getClassLabel(classId) {
+            const labels = {
+                0: 'person',
+                1: 'bicycle',
+                2: 'car',
+                3: 'motorcycle',
+                4: 'airplane',
+                5: 'bus',
+                6: 'train',
+                7: 'truck',
+                8: 'boat',
+                9: 'traffic light',
+                10: 'fire hydrant',
+                11: 'stop sign',
+                12: 'parking meter',
+                13: 'bench',
+                14: 'bird',
+                15: 'cat',
+                16: 'dog',
+                17: 'horse',
+                18: 'sheep',
+                19: 'cow',
+                20: 'elephant',
+                21: 'bear',
+                22: 'zebra',
+                23: 'giraffe',
+                24: 'backpack',
+                25: 'umbrella',
+                26: 'handbag',
+                27: 'tie',
+                28: 'suitcase',
+                29: 'frisbee',
+                30: 'skis',
+                31: 'snowboard',
+                32: 'sports ball',
+                33: 'kite',
+                34: 'baseball bat',
+                35: 'baseball glove',
+                36: 'skateboard',
+                37: 'surfboard',
+                38: 'tennis racket',
+                39: 'bottle',
+                40: 'wine glass',
+                41: 'cup',
+                42: 'fork',
+                43: 'knife',
+                44: 'spoon',
+                45: 'bowl',
+                46: 'banana',
+                47: 'apple',
+                48: 'sandwich',
+                49: 'orange',
+                50: 'broccoli',
+                51: 'carrot',
+                52: 'hot dog',
+                53: 'pizza',
+                54: 'donut',
+                55: 'cake',
+                56: 'chair',
+                57: 'couch',
+                58: 'potted plant',
+                59: 'bed',
+                60: 'dining table',
+                61: 'toilet',
+                62: 'tv',
+                63: 'laptop',
+                64: 'mouse',
+                65: 'remote',
+                66: 'keyboard',
+                67: 'cell phone',
+                68: 'microwave',
+                69: 'oven',
+                70: 'toaster',
+                71: 'sink',
+                72: 'refrigerator',
+                73: 'book',
+                74: 'clock',
+                75: 'vase',
+                76: 'scissors',
+                77: 'teddy bear',
+                78: 'hair drier',
+                79: 'toothbrush'
+            };
+            return labels[classId] || `Item ${classId}`;
+        }
+
+        // Run detection
+        async function detectObjects() {
+            if (!model || isDetecting) return;
+            
+            const now = Date.now();
+            if (now - lastDetectionTime < DETECTION_INTERVAL) return;
+            
+            isDetecting = true;
+            lastDetectionTime = now;
+
+            try {
+                const input = preprocessImage(videoFeed);
+                const output = await model.executeAsync(input);
+                const detections = processOutput(output);
+                
+                // Clean up tensors
+                tf.dispose([input, ...output]);
+                
+                renderDetections(detections);
+            } catch (error) {
+                console.error('Detection error:', error);
+            } finally {
+                isDetecting = false;
+            }
+        }
+
+        // Render detection boxes and labels
+        function renderDetections(detections) {
+            detectionContainer.innerHTML = '';
+            
+            detections.forEach(detection => {
+                const box = document.createElement('div');
+                box.className = 'detection-box';
+                box.style.left = `${detection.bbox[0]}px`;
+                box.style.top = `${detection.bbox[1]}px`;
+                box.style.width = `${detection.bbox[2]}px`;
+                box.style.height = `${detection.bbox[3]}px`;
+
+                const label = document.createElement('div');
+                label.className = 'detection-label';
+                label.style.left = `${detection.bbox[0]}px`;
+                label.style.top = `${detection.bbox[1] - 30}px`;
+                label.innerHTML = `
+                    ${detection.label} (${Math.round(detection.confidence * 100)}%)
+                    <button class="ml-2 text-blue-400 hover:text-blue-300" onclick="window.open('https://www.google.com/search?tbm=shop&q=${encodeURIComponent(detection.label)}', '_blank')">
+                        🔍
+                    </button>
+                `;
+
+                detectionContainer.appendChild(box);
+                detectionContainer.appendChild(label);
+            });
+        }
+
+        // Show toast message
+        function showToast(message) {
+            toast.textContent = message;
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 2000);
+        }
+
+        // Share functionality
+        function shareFit() {
+            const detections = Array.from(document.querySelectorAll('.detection-label'))
+                .map(label => label.textContent.split(' (')[0]);
+            
+            if (detections.length === 0) {
+                showToast('No items detected yet!');
+                return;
+            }
+            
+            const fitSummary = `Today's Fit: ${detections.join(', ')}`;
+            navigator.clipboard.writeText(fitSummary);
+            showToast('Fit copied to clipboard!');
+        }
+
+        // Initialize app
+        async function initApp() {
+            try {
+                await initWebcam();
+                const modelLoaded = await loadModel();
+                
+                if (modelLoaded) {
+                    loadingOverlay.style.display = 'none';
+                    // Start detection loop
+                    setInterval(detectObjects, DETECTION_INTERVAL);
+                }
+            } catch (error) {
+                console.error('Initialization error:', error);
+                showToast('Error initializing app. Please refresh the page.');
+            }
+        }
+
+        // Event listeners
+        shareButton.addEventListener('click', shareFit);
+
+        // Start the app
+        initApp();
+    </script>
 </body>
 </html> 
