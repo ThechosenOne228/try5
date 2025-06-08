@@ -424,17 +424,30 @@
             const [isTransitioning, setIsTransitioning] = React.useState(false);
             const modelRef = React.useRef(null);
 
-            // Initialize webcam
-            const initWebcam = async (facingMode = 'user') => {
+            // Initialize camera
+            const initCamera = async (facingMode = 'user') => {
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: facingMode }
-                    });
+                    const constraints = {
+                        video: {
+                            facingMode: facingMode,
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        }
+                    };
+
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
                     const video = document.createElement('video');
                     video.srcObject = stream;
                     video.setAttribute('playsinline', '');
                     video.setAttribute('autoplay', '');
-                    await video.play();
+                    
+                    // Wait for video to be ready
+                    await new Promise((resolve) => {
+                        video.onloadedmetadata = () => {
+                            video.play().then(resolve);
+                        };
+                    });
+
                     return video;
                 } catch (err) {
                     throw new Error('Failed to access camera: ' + err.message);
@@ -448,16 +461,16 @@
                         setLoadingProgress('Loading TensorFlow.js...');
                         await tf.ready();
                         
-                        setLoadingProgress('Loading COCO-SSD model...');
+                        setLoadingProgress('Loading AI model...');
                         const model = await cocoSsd.load({
                             base: 'lite_mobilenet_v2'
                         });
                         modelRef.current = model;
                         
-                        setLoadingProgress('Models loaded successfully!');
+                        setLoadingProgress('Model loaded successfully!');
                         setIsModelLoading(false);
                     } catch (err) {
-                        setError('Failed to load models: ' + err.message);
+                        setError('Failed to load AI model: ' + err.message);
                         setIsModelLoading(false);
                     }
                 };
@@ -495,7 +508,7 @@
 
                     // Switch camera
                     const newFacingMode = isFrontCamera ? 'environment' : 'user';
-                    const newVideo = await initWebcam(newFacingMode);
+                    const newVideo = await initCamera(newFacingMode);
                     setVideoRef(newVideo);
                     setIsFrontCamera(!isFrontCamera);
                 } catch (err) {
@@ -596,22 +609,48 @@
         };
 
         // Initialize app
-        async function initApp() {
+        const initApp = async () => {
             try {
                 debugLog('Initializing app...');
                 checkDependencies();
-                const videoElement = await initWebcam();
+                
+                // Initialize camera
+                const constraints = {
+                    video: {
+                        facingMode: 'user',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                const videoElement = document.createElement('video');
+                videoElement.srcObject = stream;
+                videoElement.setAttribute('playsinline', '');
+                videoElement.setAttribute('autoplay', '');
+                
+                // Wait for video to be ready
+                await new Promise((resolve) => {
+                    videoElement.onloadedmetadata = () => {
+                        videoElement.play().then(resolve);
+                    };
+                });
+
                 debugLog('Creating React root...');
                 const root = ReactDOM.createRoot(document.getElementById('app-root'));
-                debugLog('Rendering app...');
                 root.render(React.createElement(App, { initialVideoRef: videoElement }));
-                debugLog('App initialized successfully');
             } catch (err) {
                 const errorMsg = 'Failed to initialize app: ' + err.message;
                 debugLog(errorMsg);
-                showError(errorMsg);
+                document.getElementById('app-root').innerHTML = `
+                    <div class="error-container">
+                        <h2>Error</h2>
+                        <p>${errorMsg}</p>
+                        <button onclick="window.location.reload()" class="retry-button">Retry</button>
+                    </div>
+                `;
             }
-        }
+        };
 
         // Start the app
         initApp();
