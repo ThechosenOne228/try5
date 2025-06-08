@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-time Object Detection</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use local ONNX Runtime -->
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
-    <!-- Add Font Awesome for icons -->
+    <!-- Use local Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use local Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -17,11 +19,22 @@
             <div class="text-center">
                 <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
                 <p class="mt-4 text-xl">Loading model...</p>
+                <p class="mt-2 text-sm text-gray-400">This may take a few moments</p>
             </div>
         </div>
 
         <!-- Error Message -->
         <div id="errorMessage" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50"></div>
+
+        <!-- Model Not Found Message -->
+        <div id="modelNotFound" class="hidden fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="text-center bg-gray-800 p-8 rounded-lg max-w-md">
+                <i class="fas fa-exclamation-triangle text-yellow-500 text-4xl mb-4"></i>
+                <h2 class="text-xl font-bold mb-2">Model File Not Found</h2>
+                <p class="mb-4">Please make sure the file <code class="bg-gray-700 px-2 py-1 rounded">models/yolov8m.onnx</code> exists in the project folder.</p>
+                <p class="text-sm text-gray-400">You can download the model from the project repository.</p>
+            </div>
+        </div>
 
         <div class="relative">
             <!-- Video and Canvas Container -->

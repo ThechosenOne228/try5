@@ -50,6 +50,12 @@ function setLoading(isLoading) {
     loadingElement.style.display = isLoading ? 'flex' : 'none';
 }
 
+// Show model not found message
+function showModelNotFound() {
+    const modelNotFoundElement = document.getElementById('modelNotFound');
+    modelNotFoundElement.classList.remove('hidden');
+}
+
 // Initialize the application
 async function init() {
     video = document.getElementById('video');
@@ -83,12 +89,19 @@ async function init() {
 
     // Load ONNX model
     try {
-        model = await ort.InferenceSession.create('yolov8m.onnx');
+        // Check if model file exists
+        const modelResponse = await fetch('models/yolov8m.onnx');
+        if (!modelResponse.ok) {
+            throw new Error('Model file not found');
+        }
+
+        // Load the model
+        model = await ort.InferenceSession.create('models/yolov8m.onnx');
         isModelLoading = false;
         updateStatus('Model loaded successfully');
     } catch (error) {
         console.error('Error loading model:', error);
-        showError('Failed to load model. Please check if yolov8m.onnx exists in the root directory.');
+        showModelNotFound();
         return;
     }
 
