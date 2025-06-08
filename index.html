@@ -124,28 +124,44 @@
                     }
                 });
                 videoFeed.srcObject = stream;
-                return new Promise((resolve) => {
+                return new Promise((resolve, reject) => {
                     videoFeed.onloadedmetadata = () => {
                         resolve();
+                    };
+                    videoFeed.onerror = (error) => {
+                        reject(new Error('Failed to load video feed'));
                     };
                 });
             } catch (error) {
                 console.error('Error accessing webcam:', error);
-                showToast('Error accessing webcam. Please check permissions.');
+                showToast('Error accessing webcam. Please check permissions and refresh the page.');
+                throw error;
             }
         }
 
         // Load YOLOv8 model
         async function loadModel() {
             try {
-                // Using a pre-converted YOLOv8 model from Hugging Face
-                model = await tf.loadGraphModel('https://huggingface.co/spaces/ultralytics/yolov8/resolve/main/yolov8n.tfjs/model.json');
+                // Using a more reliable CDN source for the model
+                model = await tf.loadGraphModel('https://cdn.jsdelivr.net/gh/ultralytics/yolov8@main/yolov8n.tfjs/model.json', {
+                    fromTFHub: false
+                });
                 console.log('Model loaded successfully');
                 return true;
             } catch (error) {
                 console.error('Error loading model:', error);
-                showToast('Error loading AI model. Please refresh the page.');
-                return false;
+                // Try fallback model if primary fails
+                try {
+                    model = await tf.loadGraphModel('https://tfhub.dev/tensorflow/tfjs-model/yolov8n/1/default/1', {
+                        fromTFHub: true
+                    });
+                    console.log('Fallback model loaded successfully');
+                    return true;
+                } catch (fallbackError) {
+                    console.error('Fallback model loading failed:', fallbackError);
+                    showToast('Error loading AI model. Please check your internet connection and refresh the page.');
+                    return false;
+                }
             }
         }
 
@@ -326,13 +342,17 @@
             });
         }
 
-        // Show toast message
+        // Show toast message with improved visibility
         function showToast(message) {
             toast.textContent = message;
             toast.style.display = 'block';
+            toast.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+            toast.style.padding = '16px 32px';
+            toast.style.fontSize = '16px';
+            toast.style.zIndex = '1000';
             setTimeout(() => {
                 toast.style.display = 'none';
-            }, 2000);
+            }, 3000);
         }
 
         // Share functionality
@@ -353,16 +373,29 @@
         // Initialize app
         async function initApp() {
             try {
+                // Show loading state
+                loadingOverlay.style.display = 'flex';
+                loadingOverlay.querySelector('p').textContent = 'Initializing camera...';
+
+                // Initialize webcam first
                 await initWebcam();
+                
+                // Update loading message
+                loadingOverlay.querySelector('p').textContent = 'Loading AI model...';
+                
+                // Load model
                 const modelLoaded = await loadModel();
                 
                 if (modelLoaded) {
                     loadingOverlay.style.display = 'none';
                     // Start detection loop
                     setInterval(detectObjects, DETECTION_INTERVAL);
+                } else {
+                    throw new Error('Model failed to load');
                 }
             } catch (error) {
                 console.error('Initialization error:', error);
+                loadingOverlay.querySelector('p').textContent = 'Error initializing app. Please refresh the page.';
                 showToast('Error initializing app. Please refresh the page.');
             }
         }
