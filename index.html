@@ -115,46 +115,54 @@
 
         // Initialize webcam
         async function initWebcam() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: 'user',
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
+            let retryCount = 0;
+            const maxRetries = 3;
+
+            while (retryCount < maxRetries) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'user',
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        }
+                    });
+                    videoFeed.srcObject = stream;
+                    return new Promise((resolve, reject) => {
+                        videoFeed.onloadedmetadata = () => {
+                            resolve();
+                        };
+                        videoFeed.onerror = (error) => {
+                            reject(new Error('Failed to load video feed'));
+                        };
+                    });
+                } catch (error) {
+                    console.error(`Webcam initialization attempt ${retryCount + 1} failed:`, error);
+                    retryCount++;
+                    
+                    if (retryCount === maxRetries) {
+                        showToast('Error accessing webcam. Please check permissions and refresh the page.');
+                        throw error;
                     }
-                });
-                videoFeed.srcObject = stream;
-                return new Promise((resolve, reject) => {
-                    videoFeed.onloadedmetadata = () => {
-                        resolve();
-                    };
-                    videoFeed.onerror = (error) => {
-                        reject(new Error('Failed to load video feed'));
-                    };
-                });
-            } catch (error) {
-                console.error('Error accessing webcam:', error);
-                showToast('Error accessing webcam. Please check permissions and refresh the page.');
-                throw error;
+                    
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+                }
             }
         }
 
         // Load YOLOv8 model
         async function loadModel() {
             try {
-                // Using a more reliable CDN source for the model
-                model = await tf.loadGraphModel('https://cdn.jsdelivr.net/gh/ultralytics/yolov8@main/yolov8n.tfjs/model.json', {
-                    fromTFHub: false
-                });
+                // Using a pre-converted and hosted model
+                const modelUrl = 'https://storage.googleapis.com/tfjs-models/savedmodel/yolov8n/model.json';
+                model = await tf.loadGraphModel(modelUrl);
                 console.log('Model loaded successfully');
                 return true;
             } catch (error) {
                 console.error('Error loading model:', error);
-                // Try fallback model if primary fails
+                // Try COCO-SSD model as fallback (smaller, more reliable)
                 try {
-                    model = await tf.loadGraphModel('https://tfhub.dev/tensorflow/tfjs-model/yolov8n/1/default/1', {
-                        fromTFHub: true
-                    });
+                    model = await tf.loadGraphModel('https://storage.googleapis.com/tfjs-models/savedmodel/ssd_mobilenet_v2/model.json');
                     console.log('Fallback model loaded successfully');
                     return true;
                 } catch (fallbackError) {
@@ -178,27 +186,60 @@
 
         // Process model output
         function processOutput(output, threshold = 0.5) {
-            const [boxes, scores, classes] = output;
-            const detections = [];
-            
-            for (let i = 0; i < scores.dataSync().length; i++) {
-                if (scores.dataSync()[i] > threshold) {
-                    const bbox = boxes.dataSync().slice(i * 4, (i + 1) * 4);
-                    const classId = classes.dataSync()[i];
-                    const score = scores.dataSync()[i];
+            try {
+                const detections = [];
+                
+                // Handle both YOLOv8 and COCO-SSD model outputs
+                if (Array.isArray(output)) {
+                    // YOLOv8 output format
+                    const [boxes, scores, classes] = output;
+                    for (let i = 0; i < scores.dataSync().length; i++) {
+                        if (scores.dataSync()[i] > threshold) {
+                            const bbox = boxes.dataSync().slice(i * 4, (i + 1) * 4);
+                            const classId = classes.dataSync()[i];
+                            const score = scores.dataSync()[i];
+                            
+                            // Convert normalized coordinates to pixel coordinates
+                            const [x1, y1, x2, y2] = bbox.map(coord => coord * videoFeed.width);
+                            
+                            detections.push({
+                                bbox: [x1, y1, x2 - x1, y2 - y1],
+                                label: getClassLabel(classId),
+                                confidence: score
+                            });
+                        }
+                    }
+                } else {
+                    // COCO-SSD output format
+                    const boxes = output[0].dataSync();
+                    const scores = output[1].dataSync();
+                    const classes = output[2].dataSync();
                     
-                    // Convert normalized coordinates to pixel coordinates
-                    const [x1, y1, x2, y2] = bbox.map(coord => coord * videoFeed.width);
-                    
-                    detections.push({
-                        bbox: [x1, y1, x2 - x1, y2 - y1],
-                        label: getClassLabel(classId),
-                        confidence: score
-                    });
+                    for (let i = 0; i < scores.length; i++) {
+                        if (scores[i] > threshold) {
+                            const bbox = boxes.slice(i * 4, (i + 1) * 4);
+                            const classId = classes[i];
+                            const score = scores[i];
+                            
+                            detections.push({
+                                bbox: [
+                                    bbox[1] * videoFeed.width,
+                                    bbox[0] * videoFeed.height,
+                                    (bbox[3] - bbox[1]) * videoFeed.width,
+                                    (bbox[2] - bbox[0]) * videoFeed.height
+                                ],
+                                label: getClassLabel(classId),
+                                confidence: score
+                            });
+                        }
+                    }
                 }
+                
+                return detections;
+            } catch (error) {
+                console.error('Error processing model output:', error);
+                return [];
             }
-            
-            return detections;
         }
 
         // Get class label from class ID
@@ -370,34 +411,49 @@
             showToast('Fit copied to clipboard!');
         }
 
-        // Initialize app
+        // Initialize app with retry mechanism
         async function initApp() {
-            try {
-                // Show loading state
-                loadingOverlay.style.display = 'flex';
-                loadingOverlay.querySelector('p').textContent = 'Initializing camera...';
+            let retryCount = 0;
+            const maxRetries = 3;
 
-                // Initialize webcam first
-                await initWebcam();
-                
-                // Update loading message
-                loadingOverlay.querySelector('p').textContent = 'Loading AI model...';
-                
-                // Load model
-                const modelLoaded = await loadModel();
-                
-                if (modelLoaded) {
-                    loadingOverlay.style.display = 'none';
-                    // Start detection loop
-                    setInterval(detectObjects, DETECTION_INTERVAL);
-                } else {
-                    throw new Error('Model failed to load');
+            async function tryInitialize() {
+                try {
+                    // Show loading state
+                    loadingOverlay.style.display = 'flex';
+                    loadingOverlay.querySelector('p').textContent = 'Initializing camera...';
+
+                    // Initialize webcam first
+                    await initWebcam();
+                    
+                    // Update loading message
+                    loadingOverlay.querySelector('p').textContent = 'Loading AI model...';
+                    
+                    // Load model
+                    const modelLoaded = await loadModel();
+                    
+                    if (modelLoaded) {
+                        loadingOverlay.style.display = 'none';
+                        // Start detection loop
+                        setInterval(detectObjects, DETECTION_INTERVAL);
+                    } else {
+                        throw new Error('Model failed to load');
+                    }
+                } catch (error) {
+                    console.error('Initialization error:', error);
+                    
+                    if (retryCount < maxRetries) {
+                        retryCount++;
+                        loadingOverlay.querySelector('p').textContent = `Retrying initialization (${retryCount}/${maxRetries})...`;
+                        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+                        return tryInitialize();
+                    } else {
+                        loadingOverlay.querySelector('p').textContent = 'Error initializing app. Please check your internet connection and refresh the page.';
+                        showToast('Error initializing app. Please check your internet connection and refresh the page.');
+                    }
                 }
-            } catch (error) {
-                console.error('Initialization error:', error);
-                loadingOverlay.querySelector('p').textContent = 'Error initializing app. Please refresh the page.';
-                showToast('Error initializing app. Please refresh the page.');
             }
+
+            await tryInitialize();
         }
 
         // Event listeners
